@@ -17,7 +17,7 @@ Backstage UI or Codex via Backstage MCP
 - Pulseboard has a responsive operations dashboard, seeded incidents, severity and status filters, service health, details, updates, notes, and a JSON API.
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
-- The custom Function runtime image and xpkg package built locally. The package path is set to `ghcr.io/yashmahakal/function-preview-resources:v0.1.0`; publishing it is the next integration step.
+- The custom Function runtime image and xpkg package built locally. GitHub Actions published `ghcr.io/yashmahakal/function-preview-resources:v0.1.0`; in-cluster Function health is the next integration check.
 - The dedicated `kind-preview-platform` cluster has a Ready Kubernetes v1.35.0 node, Crossplane v2.4.0, and NGINX Ingress Controller. A temporary direct Pulseboard deployment is reachable at [http://pulseboard-smoke.localhost:8088](http://pulseboard-smoke.localhost:8088). **A Crossplane-managed preview, Argo CD pruning, vCluster routing, and Backstage MCP execution have not been verified yet.** See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
@@ -80,7 +80,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    cd ../../..
    ```
 
-   The GHCR package remains private while the repository is private. The cluster needs package-manager and runtime image pull credentials before installing this Function; keep those credentials outside Git.
+   GHCR package visibility is managed separately from repository visibility. The Function package and Pulseboard image must each be made public for anonymous cluster pulls. If either remains private, the cluster needs pull credentials for that package; keep credentials outside Git. The release workflow uses the built-in `GITHUB_TOKEN` to publish.
 
 3. Apply Crossplane prerequisites in order. Check that Providers and Functions are healthy before applying Compositions:
 

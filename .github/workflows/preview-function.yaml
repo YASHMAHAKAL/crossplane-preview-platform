@@ -49,7 +49,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish private Function package
+      - name: Publish Function package
         run: |
           crossplane xpkg push \
             --package-files=/tmp/function-preview-resources.xpkg \

@@ -65,6 +65,10 @@ func TestRenderVCluster(t *testing.T) {
 	}
 	spec := resources[1].Object["spec"].(map[string]any)
 	values := spec["forProvider"].(map[string]any)["values"].(map[string]any)
+	image := values["controlPlane"].(map[string]any)["statefulSet"].(map[string]any)["image"].(map[string]any)
+	if image["repository"] != "loft-sh/vcluster-oss" {
+		t.Fatalf("vCluster must use its OSS image: %#v", image)
+	}
 	manifests := values["experimental"].(map[string]any)["deploy"].(map[string]any)["vcluster"].(map[string]any)["manifests"].(string)
 	if !strings.Contains(manifests, "CustomResourceDefinition") || !strings.Contains(manifests, xr.Spec.Image.Digest) {
 		t.Fatalf("virtual cluster does not receive CRD and app: %s", manifests)

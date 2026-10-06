@@ -118,7 +118,7 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 				"namespace": name, "skipCreateNamespace": true, "wait": true,
 				"chart": obj(map[string]any{"name": "vcluster", "repository": "https://charts.loft.sh", "version": "0.36.0"}),
 				"values": obj(map[string]any{
-					"controlPlane": obj(map[string]any{"image": obj(map[string]any{"registry": "ghcr.io", "repository": "loft-sh/vcluster-oss"})}),
+					"controlPlane": obj(map[string]any{"statefulSet": obj(map[string]any{"image": obj(map[string]any{"registry": "ghcr.io", "repository": "loft-sh/vcluster-oss"})})}),
 					"sync":         obj(map[string]any{"toHost": obj(map[string]any{"ingresses": obj(map[string]any{"enabled": true})})}),
 					"experimental": obj(map[string]any{"deploy": obj(map[string]any{"vcluster": obj(map[string]any{"manifests": strings.Join(manifestParts, "\n---\n")})})}),
 				}),

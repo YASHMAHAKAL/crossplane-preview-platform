@@ -3,4 +3,4 @@ kind: Function
 metadata:
   name: function-preview-resources
 spec:
-  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.1
+  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.2

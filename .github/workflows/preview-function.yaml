@@ -1,0 +1,57 @@
+name: Publish preview function
+
+on:
+  push:
+    tags:
+      - 'function-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${REF_NAME#function-}"
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - name: Build Function runtime
+        run: docker build --platform linux/amd64 -t function-preview-runtime:${{ steps.version.outputs.value }} platform/crossplane/function
+      - name: Install checksum-verified Crossplane CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o /tmp/crossplane-cli.tar.gz \
+            https://cli.crossplane.io/stable/v2.5.0/bundle/linux_amd64/crossplane-cli.tar.gz
+          mkdir -p /tmp/crossplane-cli
+          tar -xzf /tmp/crossplane-cli.tar.gz -C /tmp/crossplane-cli
+          expected="$(cat /tmp/crossplane-cli/crossplane.sha256)"
+          actual="$(sha256sum /tmp/crossplane-cli/crossplane | cut -d ' ' -f 1)"
+          test "$actual" = "$expected"
+          echo /tmp/crossplane-cli >> "$GITHUB_PATH"
+      - name: Build Function package
+        working-directory: platform/crossplane/function
+        run: |
+          crossplane xpkg build \
+            --package-root=package \
+            --embed-runtime-image=function-preview-runtime:${{ steps.version.outputs.value }} \
+            --package-file=/tmp/function-preview-resources.xpkg
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish private Function package
+        run: |
+          crossplane xpkg push \
+            --package-files=/tmp/function-preview-resources.xpkg \
+            --oci-annotation=org.opencontainers.image.source=https://github.com/YASHMAHAKAL/crossplane-preview-platform \
+            ghcr.io/yashmahakal/function-preview-resources:${{ steps.version.outputs.value }}

@@ -71,15 +71,16 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    helm install nginx-ingress oci://ghcr.io/nginx/charts/nginx-ingress --version 2.7.3 --namespace nginx-ingress --create-namespace --values deploy/local/nginx-ingress-values.yaml
    ```
 
-2. Build the function package and publish it to the configured GHCR path in [functions.yaml](platform/crossplane/functions.yaml). Authenticate to GHCR with package write access before `xpkg push`:
+2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed, for example `function-v0.1.0`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
 
    ```sh
    cd platform/crossplane/function
    docker build --platform linux/amd64 -t function-preview-runtime:v0.1.0 .
    crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.0 --package-file=/tmp/function-preview-resources.xpkg
-   crossplane xpkg push --package-files=/tmp/function-preview-resources.xpkg ghcr.io/YASHMAHAKAL/function-preview-resources:v0.1.0
    cd ../../..
    ```
+
+   The GHCR package remains private while the repository is private. The cluster needs package-manager and runtime image pull credentials before installing this Function; keep those credentials outside Git.
 
 3. Apply Crossplane prerequisites in order. Check that Providers and Functions are healthy before applying Compositions:
 

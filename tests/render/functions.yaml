@@ -6,7 +6,7 @@ metadata:
     render.crossplane.io/runtime: Development
 spec:
   # Build and publish platform/crossplane/function before applying this object.
-  package: ghcr.io/YASHMAHAKAL/function-preview-resources:v0.1.0
+  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.0
 ---
 apiVersion: pkg.crossplane.io/v1
 kind: Function

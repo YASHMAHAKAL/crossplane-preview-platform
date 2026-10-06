@@ -40,11 +40,20 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		response.Fatal(rsp, err)
 		return rsp, nil
 	}
+	observedResources, err := request.GetObservedComposedResources(req)
+	if err != nil {
+		response.Fatal(rsp, fmt.Errorf("read composed resources: %w", err))
+		return rsp, nil
+	}
 	desired := map[resource.Name]*resource.DesiredComposed{}
 	for _, item := range rendered {
 		cd := composed.New()
 		cd.Object = item.Object
-		desired[resource.Name(item.Name)] = &resource.DesiredComposed{Resource: cd}
+		state := resource.ReadyFalse
+		if current, ok := observedResources[resource.Name(item.Name)]; ok && current.Resource != nil && composedReady(item.Name, current.Resource.Object) {
+			state = resource.ReadyTrue
+		}
+		desired[resource.Name(item.Name)] = &resource.DesiredComposed{Resource: cd, Ready: state}
 	}
 	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
 		response.Fatal(rsp, fmt.Errorf("set desired resources: %w", err))

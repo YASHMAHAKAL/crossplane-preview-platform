@@ -5,12 +5,4 @@ metadata:
   annotations:
     render.crossplane.io/runtime: Development
 spec:
-  # Build and publish platform/crossplane/function before applying this object.
-  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.0
----
-apiVersion: pkg.crossplane.io/v1
-kind: Function
-metadata:
-  name: function-auto-ready
-spec:
-  package: xpkg.crossplane.io/crossplane-contrib/function-auto-ready:v0.6.7
+  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.1

@@ -1,6 +1,6 @@
 # Crossplane Composition render checks
 
-`namespace-xr.json` and `vcluster-xr.json` are cluster-scoped v2 XR fixtures. `functions.yaml` marks the custom function as a local development runtime; `function-auto-ready` runs through Docker. The two Make targets use the actual Compositions, the v2.4.0 render engine, and the XRD schema.
+`namespace-xr.json` and `vcluster-xr.json` are cluster-scoped v2 XR fixtures. `functions.yaml` marks the custom function as a local development runtime. The two Make targets use the actual Compositions, the v2.4.0 render engine, and the XRD schema. The custom function reports readiness from observed Namespace, Deployment, Service, Ingress, ResourceQuota, and vCluster Release state.
 
 Run from a machine with Docker and a Crossplane CLI:
 

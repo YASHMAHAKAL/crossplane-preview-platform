@@ -15,6 +15,3 @@ spec:
         apiVersion: preview.fn.platform.example.org/v1alpha1
         kind: PreviewResourcesInput
         mode: namespace
-    - step: detect-readiness
-      functionRef:
-        name: function-auto-ready

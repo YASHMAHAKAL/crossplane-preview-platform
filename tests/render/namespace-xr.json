@@ -1,0 +1,36 @@
+{
+  "apiVersion": "preview.platform.example.org/v1alpha1",
+  "kind": "PreviewEnvironment",
+  "metadata": {
+    "name": "incident-tracker-pr-42"
+  },
+  "spec": {
+    "crossplane": {
+      "compositionRef": {
+        "name": "preview-namespace"
+      }
+    },
+    "serviceRef": "incident-tracker",
+    "pr": {
+      "number": 42,
+      "headSHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "image": {
+      "digest": "ghcr.io/yashmahakal/crossplane-preview-platform@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "request": {
+      "size": "small",
+      "ttlMinutes": 120
+    },
+    "preview": {
+      "host": "incident-tracker-pr-42.localhost"
+    },
+    "decision": {
+      "mode": "namespace",
+      "reasonCodes": [
+        "namespaced-app-change"
+      ]
+    },
+    "capabilities": []
+  }
+}

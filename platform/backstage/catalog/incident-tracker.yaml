@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: incident-tracker
+  title: Incident Tracker
+  description: Pulseboard incident operations app and reference service for PR previews.
+  annotations:
+    github.com/project-slug: YASHMAHAKAL/crossplane-preview-platform
+  tags: [incidents, preview, crossplane]
+  links:
+    - title: Request a preview
+      url: /create/templates/default/request-incident-tracker-preview
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-team

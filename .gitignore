@@ -1,0 +1,22 @@
+# Local credentials and operator state
+.env
+.env.*
+!.env.example
+.agents/
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+platform/evaluator/config.local.json
+
+# Generated dependencies, packages, and app data
+node_modules/
+dist/
+coverage/
+*.xpkg
+*.log
+app/incident-tracker/data/
+
+# Workstation files
+.DS_Store

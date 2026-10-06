@@ -1,0 +1,75 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: request-incident-tracker-preview
+  title: Request an Incident Tracker preview
+  description: Open a PR that requests a bounded local preview for the cataloged Incident Tracker service.
+  tags: [preview, crossplane, vcluster]
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Preview request
+      required: [requestId, repoUrl, size, ttlMinutes, capability]
+      properties:
+        requestId:
+          title: Request ID
+          description: Short unique name for this PR; reuse it to update size or lifetime. Use a new ID for a different capability.
+          type: string
+          pattern: '^[a-z][a-z0-9-]{2,24}$'
+        repoUrl:
+          title: Preview source repository
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts: [github.com]
+            allowedRepos: [crossplane-preview-platform]
+        size:
+          title: Preview size
+          type: string
+          enum: [small, medium]
+          default: small
+        ttlMinutes:
+          title: Lifetime in minutes
+          type: integer
+          minimum: 5
+          maximum: 240
+          default: 120
+        capability:
+          title: Required capability
+          type: string
+          description: A custom Kubernetes API requires a vCluster preview.
+          enum: [app-only, incident-policy]
+          default: app-only
+  steps:
+    - id: request
+      name: Prepare the preview request
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          requestId: ${{ parameters.requestId }}
+          size: ${{ parameters.size }}
+          ttlMinutes: ${{ parameters.ttlMinutes }}
+    - id: clusterCapability
+      name: Add the fixed cluster capability
+      if: ${{ parameters.capability == 'incident-policy' }}
+      action: fetch:plain
+      input:
+        url: ./cluster
+    - id: pullRequest
+      name: Open or update the GitHub PR
+      action: publish:github:pull-request
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        branchName: preview-request-${{ parameters.requestId }}
+        title: 'Preview request: ${{ parameters.requestId }}'
+        description: 'Requested through the Incident Tracker catalog template. The Go evaluator decides isolation after CI.'
+        targetBranchName: main
+        update: true
+  output:
+    links:
+      - title: Preview request PR
+        url: ${{ steps.pullRequest.output.remoteUrl }}
+      - title: Incident Tracker catalog entry
+        url: /catalog/default/component/incident-tracker

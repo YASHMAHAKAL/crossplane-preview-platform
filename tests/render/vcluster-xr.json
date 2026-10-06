@@ -1,0 +1,38 @@
+{
+  "apiVersion": "preview.platform.example.org/v1alpha1",
+  "kind": "PreviewEnvironment",
+  "metadata": {
+    "name": "incident-tracker-pr-43"
+  },
+  "spec": {
+    "crossplane": {
+      "compositionRef": {
+        "name": "preview-vcluster"
+      }
+    },
+    "serviceRef": "incident-tracker",
+    "pr": {
+      "number": 43,
+      "headSHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "image": {
+      "digest": "ghcr.io/yashmahakal/crossplane-preview-platform@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "request": {
+      "size": "small",
+      "ttlMinutes": 120
+    },
+    "preview": {
+      "host": "incident-tracker-pr-43.localhost"
+    },
+    "decision": {
+      "mode": "vcluster",
+      "reasonCodes": [
+        "cluster-api-required"
+      ]
+    },
+    "capabilities": [
+      "incident-policy"
+    ]
+  }
+}

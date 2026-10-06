@@ -1,0 +1,12 @@
+controller:
+  nginxplus: false
+  enableCustomResources: false
+  ingressClass:
+    name: nginx
+    create: true
+  service:
+    type: NodePort
+    httpPort:
+      nodePort: 30080
+    httpsPort:
+      enable: false

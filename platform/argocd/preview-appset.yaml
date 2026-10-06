@@ -1,0 +1,53 @@
+# Create the separate YASHMAHAKAL/preview-gitops repository and push the
+# evaluator-authored previews/ tree before applying this manifest. Never point
+# this ApplicationSet at a PR branch.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: preview-environments
+  namespace: argocd
+spec:
+  description: Evaluator-owned PreviewEnvironment XRs only
+  sourceRepos:
+    - https://github.com/YASHMAHAKAL/preview-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+  clusterResourceWhitelist:
+    - group: preview.platform.example.org
+      kind: PreviewEnvironment
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-environments
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: [missingkey=error]
+  generators:
+    - git:
+        repoURL: https://github.com/YASHMAHAKAL/preview-gitops.git
+        revision: main
+        directories:
+          - path: previews/*
+  template:
+    metadata:
+      name: 'preview-{{.path.basename}}'
+    spec:
+      project: preview-environments
+      source:
+        repoURL: https://github.com/YASHMAHAKAL/preview-gitops.git
+        targetRevision: main
+        path: '{{.path.path}}'
+        directory:
+          include: previewenvironment.json
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - PrunePropagationPolicy=foreground

@@ -1,0 +1,20 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: preview-namespace
+spec:
+  compositeTypeRef:
+    apiVersion: preview.platform.example.org/v1alpha1
+    kind: PreviewEnvironment
+  mode: Pipeline
+  pipeline:
+    - step: render-preview-resources
+      functionRef:
+        name: function-preview-resources
+      input:
+        apiVersion: preview.fn.platform.example.org/v1alpha1
+        kind: PreviewResourcesInput
+        mode: namespace
+    - step: detect-readiness
+      functionRef:
+        name: function-auto-ready

@@ -1,0 +1,5 @@
+{
+  "requestId": "${{ values.requestId }}",
+  "size": "${{ values.size }}",
+  "ttlMinutes": ${{ values.ttlMinutes }}
+}

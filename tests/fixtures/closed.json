@@ -1,0 +1,25 @@
+{
+  "pr": {
+    "number": 42,
+    "headSHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "repository": "YASHMAHAKAL/crossplane-preview-platform",
+    "author": "YASHMAHAKAL",
+    "fork": false,
+    "state": "closed"
+  },
+  "request": {
+    "size": "small",
+    "ttlMinutes": 120
+  },
+  "ci": {
+    "state": "success",
+    "headSHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "imageDigest": "ghcr.io/yashmahakal/crossplane-preview-platform@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "activePreviews": 0,
+  "files": [
+    {
+      "path": "app/incident-tracker/src/server.js"
+    }
+  ]
+}

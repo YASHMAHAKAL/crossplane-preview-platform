@@ -1,0 +1,25 @@
+{
+  "service": "incident-tracker",
+  "repository": "YASHMAHAKAL/crossplane-preview-platform",
+  "trustedAuthors": [
+    "YASHMAHAKAL"
+  ],
+  "sizes": {
+    "small": {
+      "cpu": "250m",
+      "memory": "256Mi"
+    },
+    "medium": {
+      "cpu": "500m",
+      "memory": "512Mi"
+    }
+  },
+  "maxTTLMinutes": 240,
+  "maxActivePreviews": 3,
+  "allowedCRD": {
+    "name": "incidentpolicies.incidents.demo.local",
+    "group": "incidents.demo.local",
+    "kind": "IncidentPolicy",
+    "manifestSHA256": "7d532ba3e0ff33466e650d04a6ce019e2249ce617da4f59364f7a5c5e4be5fea"
+  }
+}

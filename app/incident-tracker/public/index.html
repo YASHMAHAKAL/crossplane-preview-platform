@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b2d">
+  <title>Pulseboard · Incident operations</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 20 6v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 11h7l-1 9 10-12h-7V2Z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+  </svg>
+
+  <div class="shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#overview" aria-label="Pulseboard overview">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <span><strong>pulseboard</strong><small>INCIDENT OPERATIONS</small></span>
+      </a>
+      <div class="sidebar-section-label">WORKSPACE</div>
+      <nav class="primary-nav">
+        <a class="nav-link active" href="#overview"><svg class="icon"><use href="#i-grid"></use></svg> Overview</a>
+        <a class="nav-link" href="#incidents"><svg class="icon"><use href="#i-activity"></use></svg> Incidents <span id="nav-active-count" class="nav-count">0</span></a>
+        <a class="nav-link" href="#services"><svg class="icon"><use href="#i-layers"></use></svg> Services</a>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-preview">
+        <div class="sidebar-preview-icon"><svg class="icon"><use href="#i-bolt"></use></svg></div>
+        <div><strong>Preview environment</strong><span id="preview-context">Local workspace</span></div>
+      </div>
+      <div class="sidebar-footer"><span class="avatar">OC</span><span><strong>Operations Console</strong><small>Demo workspace</small></span><span class="footer-dot"></span></div>
+    </aside>
+
+    <main class="main" id="overview">
+      <div class="topbar">
+        <div class="breadcrumbs"><span>Workspace</span><span class="crumb-sep">/</span><strong>Overview</strong></div>
+        <div class="topbar-actions"><span class="live-pill"><span class="pulse-dot"></span> LIVE MONITORING</span><button class="button button-primary top-create" data-open-create><svg class="icon"><use href="#i-plus"></use></svg> New incident</button></div>
+      </div>
+
+      <div class="page-body">
+        <section class="welcome" aria-labelledby="welcome-title">
+          <div><p class="eyebrow" id="today-label">OPERATIONS / TODAY</p><h1 id="welcome-title">Stay ahead of the signal<span>.</span></h1><p class="welcome-copy">A clear view of what needs attention across your services.</p></div>
+          <div class="welcome-illustration" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div><svg viewBox="0 0 230 110"><path d="M0 64h45l15-28 18 52 23-58 20 35h37l12-17 12 22h48"/></svg></div>
+        </section>
+
+        <section class="metrics" aria-label="Incident summary">
+          <article class="metric-card"><div class="metric-top"><span>Active incidents</span><span class="metric-symbol symbol-red"><svg class="icon"><use href="#i-activity"></use></svg></span></div><strong id="metric-active">—</strong><div class="metric-foot"><span class="mini-dot red"></span> Open or investigating</div></article>
+          <article class="metric-card"><div class="metric-top"><span>Critical priority</span><span class="metric-symbol symbol-orange"><svg class="icon"><use href="#i-bolt"></use></svg></span></div><strong id="metric-critical">—</strong><div class="metric-foot"><span class="mini-dot orange"></span> Needs immediate action</div></article>
+          <article class="metric-card"><div class="metric-top"><span>Investigating</span><span class="metric-symbol symbol-blue"><svg class="icon"><use href="#i-search"></use></svg></span></div><strong id="metric-investigating">—</strong><div class="metric-foot"><span class="mini-dot blue"></span> Work in progress</div></article>
+          <article class="metric-card"><div class="metric-top"><span>Resolved</span><span class="metric-symbol symbol-green"><svg class="icon"><use href="#i-check"></use></svg></span></div><strong id="metric-resolved">—</strong><div class="metric-foot"><span class="mini-dot green"></span> Across this preview</div></article>
+        </section>
+
+        <div class="content-grid">
+          <section class="panel incident-panel" id="incidents" aria-labelledby="incident-heading">
+            <div class="panel-header"><div><p class="eyebrow subdued">YOUR QUEUE</p><h2 id="incident-heading">Incidents <span id="queue-count" class="heading-count">0</span></h2></div><button class="text-button" data-open-create>Report incident <svg class="icon"><use href="#i-arrow"></use></svg></button></div>
+            <div class="queue-tools"><label class="search-field"><svg class="icon"><use href="#i-search"></use></svg><input id="search" type="search" placeholder="Search incidents, services, owners" aria-label="Search incidents"></label><label class="severity-select"><span class="sr-only">Filter by severity</span><select id="severity-filter"><option value="all">All severity</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label></div>
+            <div class="tabs" role="tablist" aria-label="Incident status"><button class="tab active" type="button" role="tab" aria-selected="true" data-status="all">All <span id="tab-all">0</span></button><button class="tab" type="button" role="tab" aria-selected="false" data-status="open">Open <span id="tab-open">0</span></button><button class="tab" type="button" role="tab" aria-selected="false" data-status="investigating">Investigating <span id="tab-investigating">0</span></button><button class="tab" type="button" role="tab" aria-selected="false" data-status="resolved">Resolved <span id="tab-resolved">0</span></button></div>
+            <div id="incident-list" class="incident-list" aria-live="polite"></div>
+          </section>
+
+          <aside class="right-rail">
+            <section class="panel health-panel" id="services" aria-labelledby="services-heading"><div class="rail-heading"><span class="rail-icon"><svg class="icon"><use href="#i-layers"></use></svg></span><div><p class="eyebrow subdued">SERVICE WATCH</p><h2 id="services-heading">Service health</h2></div></div><div id="service-list" class="service-list"></div><p class="rail-note">Status reflects incidents in this preview.</p></section>
+            <section class="panel activity-panel" aria-labelledby="activity-heading"><div class="rail-heading"><span class="rail-icon purple"><svg class="icon"><use href="#i-clock"></use></svg></span><div><p class="eyebrow subdued">WHAT'S HAPPENING</p><h2 id="activity-heading">Recent activity</h2></div></div><div id="activity-list" class="activity-list"></div></section>
+            <div class="aside-tip"><svg class="icon"><use href="#i-shield"></use></svg><div><strong>Built for a preview</strong><p>Explore incidents here while the platform evaluates and provisions each PR environment.</p></div></div>
+          </aside>
+        </div>
+        <footer class="main-footer">Pulseboard · Incident operations demo <span>Local preview platform</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="create-dialog" class="modal"><div class="modal-heading"><div><p class="eyebrow subdued">NEW REPORT</p><h2>Report an incident</h2><p>Capture the essentials so your team can respond quickly.</p></div><button class="icon-button" type="button" data-close-create aria-label="Close dialog"><svg class="icon"><use href="#i-close"></use></svg></button></div><form id="create-form"><div class="form-grid"><label class="field wide">Incident title<input name="title" maxlength="120" required placeholder="e.g. Checkout requests are failing"></label><label class="field wide">What happened?<textarea name="description" maxlength="2000" required placeholder="Describe the customer impact and what you know so far"></textarea></label><label class="field">Affected service<select name="service" required><option value="" disabled selected>Select a service</option><option value="api-gateway">API Gateway</option><option value="payments">Payments</option><option value="identity">Identity</option><option value="incident-tracker">Incident Tracker</option></select></label><label class="field">Severity<select name="severity" required><option value="" disabled selected>Select severity</option><option value="critical">Critical · major impact</option><option value="high">High · significant impact</option><option value="medium">Medium · limited impact</option><option value="low">Low · minor impact</option></select></label><label class="field wide">Owner<input name="owner" maxlength="60" required placeholder="Who is coordinating the response?"></label></div><div class="modal-actions"><button type="button" class="button button-ghost" data-close-create>Cancel</button><button type="submit" class="button button-primary">Create incident</button></div></form></dialog>
+
+  <dialog id="detail-dialog" class="detail-dialog"><div id="detail-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+[mcp_servers.preview_backstage]
+url = "http://127.0.0.1:7007/api/mcp-actions/v1"
+bearer_token_env_var = "PREVIEW_MCP_TOKEN"
+enabled_tools = [
+  "catalog.query-catalog-entities",
+  "catalog.get-catalog-entity",
+  "scaffolder.execute-template",
+  "preview.get-request-task",
+  "preview.get-status",
+]
+default_tools_approval_mode = "writes"

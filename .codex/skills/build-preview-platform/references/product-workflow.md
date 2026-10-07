@@ -17,7 +17,7 @@ This file is the behavior contract. For schemas and ownership boundaries, see [a
 
 Build a polished **Incident Tracker** for a fictional operations team. A visitor can create incidents with title, description, affected service, severity, and owner; browse/search/filter the queue; inspect an incident's details and activity; and move it through `open`, `investigating`, and `resolved`. Show useful summary metrics and a clear health signal. Use a cohesive operations theme with responsive components and accessible forms, labels, keyboard behavior, and focus states. Seed representative demo data so a new preview is immediately meaningful. Keep the app focused enough that platform behavior remains the main story. Expose a health endpoint and a stable route. The default namespace preview needs only namespaced resources. A second demonstration PR declares and uses a lightweight cluster-scoped `IncidentPolicy` CRD (and a minimal corresponding capability) so the evaluator has a concrete reason to choose vCluster. Do not claim that the vCluster is necessary for all CRDs in every environment; it is the policy choice for this shared host.
 
-The Backstage software template creates a repository that contains the app, container build, deployment package, catalog descriptor, API description where useful, CI workflow, and a checked-in preview contract. The catalog entity advertises ownership, repository link, API, and the preview action. The preview contract advertises allowable input fields and bounds; it is data for both UI and Codex discovery, not an instruction to grant arbitrary infrastructure.
+The current Backstage request template opens or updates a preview-request PR in the existing Incident Tracker source repository, which contains the app, container build, catalog descriptor, CI workflow, and checked-in preview contract. The catalog entity advertises ownership, repository link, API, and the preview action. The template advertises allowable input fields and bounds for both UI and Codex discovery; it does not grant arbitrary infrastructure.
 
 ## End-to-end journeys
 
@@ -30,7 +30,7 @@ The Backstage software template creates a repository that contains the app, cont
 ### Manual request through Backstage
 
 1. A Scaffolder template creates the Incident Tracker repository, or a service action creates a preview-request PR for an existing registered service. An ordinary developer code PR with a valid preview contract is also eligible.
-2. The request UI captures service, PR or branch context, optional size/TTL within published bounds, and intended changes. It returns the GitHub PR URL and a request identifier. It does not directly deploy a preview.
+2. The request UI captures the source repository, request ID, size, TTL, and supported capability. It returns the GitHub PR URL and a direct link to the **PR Previews** status page. It does not directly deploy a preview.
 3. Before the watcher writes its first status record, Backstage reports `pending-evaluation` without a head SHA or URL. Once recorded, the user sees `waiting-for-ci`, `evaluating`, `approved`, `rejected`, `provisioning`, `ready`, `degraded`, `cleaning`, `cleanup-failed`, or `deleted`, with a reason. A ready preview has its local URL and isolation mode. Merge and ordinary close have distinct reason codes; `deleted` follows observed cluster and route cleanup, while `cleanup-failed` identifies resources that remain after the timeout.
 
 ### Request through Codex

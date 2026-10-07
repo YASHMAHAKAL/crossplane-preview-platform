@@ -1,4 +1,5 @@
 {
-  "size": "small",
-  "ttlMinutes": 120
+  "requestId": "update-phase-20261007",
+  "size": "medium",
+  "ttlMinutes": 90
 }

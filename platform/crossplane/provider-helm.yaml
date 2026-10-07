@@ -4,3 +4,7 @@ metadata:
   name: provider-helm
 spec:
   package: xpkg.crossplane.io/crossplane-contrib/provider-helm:v1.2.0
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: preview-provider-helm

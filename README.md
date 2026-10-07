@@ -17,8 +17,8 @@ Backstage UI or Codex via Backstage MCP
 - Pulseboard has a responsive operations dashboard, seeded incidents, severity and status filters, service health, details, updates, notes, and a JSON API.
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
-- The custom Function runtime image and xpkg package built locally. GitHub Actions published `ghcr.io/yashmahakal/function-preview-resources:v0.1.0`; in-cluster Function health is the next integration check.
-- The dedicated `kind-preview-platform` cluster has a Ready Kubernetes v1.35.0 node, Crossplane v2.4.0, and NGINX Ingress Controller. A temporary direct Pulseboard deployment is reachable at [http://pulseboard-smoke.localhost:8088](http://pulseboard-smoke.localhost:8088). **A Crossplane-managed preview, Argo CD pruning, vCluster routing, and Backstage MCP execution have not been verified yet.** See [compatibility and feasibility](docs/compatibility.md).
+- GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.2`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
+- The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. Synthetic evaluator inputs drove both a namespace preview and a vCluster preview through the private trusted GitOps repository, Argo CD, and Crossplane. Each Pulseboard URL returned HTTP 200. Closing each synthetic PR removed its GitOps path, Application, XR, and preview resources. The fixed IncidentPolicy CRD appeared only inside the vCluster. These were **synthetic inputs, not live GitHub PRs**. The real PR watcher and Backstage UI/MCP request path still need end-to-end verification. See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
 
@@ -37,11 +37,11 @@ go run ./cmd/evaluator -snapshot ../../tests/fixtures/closed.json -config config
 
 Each decision is JSON on stdout. Approved decisions create `previews/<service>-pr-<n>/previewenvironment.json`; the closed fixture removes its XR directory. `status/<name>.json` retains the decision record.
 
-The Composition render fixtures and local function instructions are in [tests/render/README.md](tests/render/README.md). Both render targets passed here; rendering proves the desired resource graph, while live controller behavior still needs a cluster run.
+The Composition render fixtures and local function instructions are in [tests/render/README.md](tests/render/README.md). Both render targets passed; the separate live checks above verified controller behavior for synthetic decisions.
 
-## Live app and ingress smoke check
+## Optional direct app and ingress smoke check
 
-The local cluster currently runs [a temporary Pulseboard deployment](deploy/local/pulseboard-smoke.yaml) in `pulseboard-smoke`. Its dashboard and `/healthz` both returned HTTP 200 through NGINX at `http://pulseboard-smoke.localhost:8088`. This proves the app image and host routing; the deployment is not a PR preview or a Crossplane-managed XR. To repeat the check after rebuilding the image:
+The temporary `pulseboard-smoke` deployment was removed after the Crossplane-managed previews succeeded. To repeat a direct app smoke check after rebuilding the image:
 
 ```sh
 docker build -t pulseboard:smoke app/incident-tracker
@@ -51,13 +51,13 @@ kubectl --context kind-preview-platform rollout status deployment/pulseboard -n 
 curl --noproxy '*' http://pulseboard-smoke.localhost:8088/healthz
 ```
 
-Remove the temporary app with `kubectl --context kind-preview-platform delete namespace pulseboard-smoke` after the Crossplane-managed preview is available.
+Remove the temporary app with `kubectl --context kind-preview-platform delete namespace pulseboard-smoke` when finished.
 
 ## Local cluster setup
 
 This path needs Docker, kind v0.31.0, kubectl, Helm, the Crossplane CLI, Go, Node 22, a public GitHub repository, and a separate trusted GitOps repository. Allow enough RAM for Crossplane, Argo CD, the ingress controller, and a vCluster. The commands below are a runbook for a fresh machine; skip `kind create cluster` when `kind-preview-platform` already exists.
 
-This workspace has the dedicated `kind-preview-platform` context and a Ready node. Crossplane and NGINX are already installed; Argo CD is pending. The two earlier kind clusters were deleted at the operator's request; the Minikube profile was stopped and retained. The checksum-verified kind CLI used to create this cluster is at `/tmp/kind-v0.31.0-linux-amd64` and is not on this shell's PATH. Select `kind-preview-platform` explicitly when installing the remaining controllers.
+This workspace has the dedicated `kind-preview-platform` context and a Ready node. Crossplane, Argo CD, provider-helm, the Function, and NGINX are installed. The two earlier kind clusters were deleted at the operator's request; the Minikube profile was stopped and retained. Select `kind-preview-platform` explicitly when installing or checking controllers.
 
 1. Create the cluster and install controllers:
 
@@ -71,32 +71,32 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    helm install nginx-ingress oci://ghcr.io/nginx/charts/nginx-ingress --version 2.7.3 --namespace nginx-ingress --create-namespace --values deploy/local/nginx-ingress-values.yaml
    ```
 
-2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed, for example `function-v0.1.0`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
+2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed; the installed tag is `function-v0.1.2`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
 
    ```sh
    cd platform/crossplane/function
-   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.0 .
-   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.0 --package-file=/tmp/function-preview-resources.xpkg
+   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.2 .
+   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.2 --package-file=/tmp/function-preview-resources.xpkg
    cd ../../..
    ```
 
-   GHCR package visibility is managed separately from repository visibility. The Function package and Pulseboard image must each be made public for anonymous cluster pulls. If either remains private, the cluster needs pull credentials for that package; keep credentials outside Git. The release workflow uses the built-in `GITHUB_TOKEN` to publish.
+   GHCR package visibility is managed separately from repository visibility. Both packages are currently public. If either becomes private, the cluster needs pull credentials for that package; keep credentials outside Git. The release workflow uses the built-in `GITHUB_TOKEN` to publish.
 
 3. Apply Crossplane prerequisites in order. Check that Providers and Functions are healthy before applying Compositions:
 
    ```sh
    kubectl apply -f platform/crossplane/rbac/composed-resources.yaml
+   kubectl apply -f platform/crossplane/provider-helm-runtime.yaml
    kubectl apply -f platform/crossplane/provider-helm.yaml
    kubectl wait --for=condition=healthy provider.pkg.crossplane.io/provider-helm --timeout=5m
    kubectl apply -f platform/crossplane/provider-helm-config.yaml
    kubectl apply -f platform/crossplane/functions.yaml
    kubectl wait --for=condition=healthy function.pkg.crossplane.io/function-preview-resources --timeout=5m
-   kubectl wait --for=condition=healthy function.pkg.crossplane.io/function-auto-ready --timeout=5m
    kubectl apply -f platform/crossplane/xrd.yaml
    kubectl apply -f platform/crossplane/compositions/
    ```
 
-4. Create a **separate** repository `YASHMAHAKAL/preview-gitops` with a `main` branch and a `previews/.gitkeep` file. Clone it into a dedicated local checkout, then run `kubectl apply -f platform/argocd/preview-appset.yaml`. The evaluator must have push access to this repository; Argo CD needs read access and repository credentials if it is private. Keep PR source branches out of Argo CD.
+4. Clone the existing **private, separate** `YASHMAHAKAL/preview-gitops` repository into a dedicated local checkout, then run `kubectl apply -f platform/argocd/preview-appset.yaml`. It contains `previews/.gitkeep` and `status/.gitkeep`. The evaluator needs push access through the checkout's Git credential helper. Argo CD needs a read-only deploy key configured as a repository Secret; keep the private key and Secret manifest outside Git. Keep PR source branches out of Argo CD.
 
 5. Set `repository` and `trustedAuthors` in a private copy of [config.example.json](platform/evaluator/config.example.json). The source repository must contain `preview.request.json`, the Incident Tracker code at `app/incident-tracker`, and [preview-image.yaml](.github/workflows/preview-image.yaml). GHCR images must be readable by kind, for example by making the package public. Run the Go watcher and status API:
 
@@ -107,6 +107,14 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    ```
 
    The watcher needs GitHub metadata/actions read access. The GitOps checkout uses your local Git credential helper for its push. Use separate credentials with narrow scopes where possible.
+
+   For each approved **vCluster** preview, once Crossplane creates its host namespace, an operator applies the fixed Helm installer Role and RoleBinding in that namespace. Run this from the repository root, substituting the actual PR number:
+
+   ```sh
+   ./deploy/local/bootstrap-vcluster-helm-installer.sh incident-tracker-pr-4244
+   ```
+
+   The script verifies an approved `vcluster` XR and its Crossplane-managed namespace before granting `crossplane-system:preview-provider-helm` chart installation permissions there. It is an explicit operator step; the watcher does not yet bootstrap this RBAC automatically. The Role disappears with the namespace during cleanup.
 
 6. In an existing Backstage backend, register [the catalog entity](platform/backstage/catalog/incident-tracker.yaml) and [request template](platform/backstage/templates/request-preview/template.yaml). Install `@backstage/plugin-mcp-actions-backend`, expose catalog and scaffolder actions, and add [the preview status plugin](platform/backstage/plugin-preview-backend/src/index.ts). Set `preview.statusApiBaseUrl: http://127.0.0.1:8090` in Backstage config. See [Backstage integration](docs/backstage.md).
 

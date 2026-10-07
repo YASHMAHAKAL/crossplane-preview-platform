@@ -2,6 +2,7 @@ package preview
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +44,53 @@ func TestPublishEmptyGitOpsCheckout(t *testing.T) {
 	}
 }
 
+func TestVClusterInstallerGrantIsFixedAndRemoved(t *testing.T) {
+	snapshot, config := fixture()
+	crd, err := os.ReadFile("../../../backstage/templates/request-preview/cluster/deploy/cluster/incident-policy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Files = append(snapshot.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: string(crd)})
+	store := Store{Root: t.TempDir()}
+	decision, err := store.Reconcile(snapshot, config)
+	if err != nil || decision.Phase != "approved" || decision.Mode != "vcluster" {
+		t.Fatalf("vCluster decision: %+v %v", decision, err)
+	}
+	name, _ := PreviewName(config.Service, snapshot.PR.Number)
+	dir := filepath.Join(store.Root, "previews", name)
+	if err := store.validatePublishTree(); err != nil {
+		t.Fatalf("fixed grant rejected: %v", err)
+	}
+	roleBytes, err := os.ReadFile(filepath.Join(dir, installerRoleFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var role map[string]any
+	if err := json.Unmarshal(roleBytes, &role); err != nil {
+		t.Fatal(err)
+	}
+	role["rules"] = []any{}
+	if err := atomicJSON(filepath.Join(dir, installerRoleFile), role); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.validatePublishTree(); err == nil || !strings.Contains(err.Error(), "modified") {
+		t.Fatalf("modified grant accepted: %v", err)
+	}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.validatePublishTree(); err != nil {
+		t.Fatalf("repaired grant rejected: %v", err)
+	}
+	snapshot.PR.State = "closed"
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("grant directory remains after close: %v", err)
+	}
+}
+
 func TestValidatePublishTree(t *testing.T) {
 	root := t.TempDir()
 	store := Store{Root: root}
@@ -60,7 +108,15 @@ func TestValidatePublishTree(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(filepath.Join(previewDir, "previewenvironment.json"))
+	snapshot, config := fixture()
+	decision := Evaluate(snapshot, config)
+	xr, err := MakeXR(snapshot, decision, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := atomicJSON(filepath.Join(previewDir, "previewenvironment.json"), xr); err != nil {
+		t.Fatal(err)
+	}
 	write(filepath.Join(statusDir, "incident-tracker-pr-42.json"))
 	if err := store.validatePublishTree(); err != nil {
 		t.Fatalf("valid evaluator tree rejected: %v", err)

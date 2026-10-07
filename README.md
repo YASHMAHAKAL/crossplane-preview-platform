@@ -17,6 +17,7 @@ Backstage UI or Codex via Backstage MCP
 - Pulseboard has a responsive operations dashboard, seeded incidents, severity and status filters, service health, details, updates, notes, and a JSON API.
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
+- Approved vCluster requests now include a fixed, evaluator-authored installer Role and RoleBinding in trusted GitOps. Argo CD applies the grant in the preview namespace; no manual installer bootstrap is needed. A synthetic local run verified automatic grant, vCluster readiness, HTTP 200, and deletion.
 - GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.2`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
 - The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#9](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, and close and merge cleanup. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI, served Pulseboard, and kept the fixed IncidentPolicy CRD inside the virtual API. PR #9 served a namespace preview, then removed it after merge. All eight approved previews returned HTTP 200 at `/healthz`; their resources were removed after close or merge. See [compatibility and feasibility](docs/compatibility.md).
 
@@ -108,13 +109,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 
    The watcher needs GitHub metadata and Actions artifact read access. An anonymous artifact download returned HTTP 401 in the real PR check, even though the source repository is public; supply a token with artifact read access. It also needs read access to the named Kubernetes context to verify cleanup, plus access to the local ingress port. The GitOps checkout uses your local Git credentials for its push. Use separate credentials with narrow scopes where possible.
 
-   For each approved **vCluster** preview, once Crossplane creates its host namespace, an operator applies the fixed Helm installer Role and RoleBinding in that namespace. Run this from the repository root, substituting the actual PR number:
-
-   ```sh
-   ./deploy/local/bootstrap-vcluster-helm-installer.sh incident-tracker-pr-4244
-   ```
-
-   The script verifies an approved `vcluster` XR and its Crossplane-managed namespace before granting `crossplane-system:preview-provider-helm` chart installation permissions there. It is an explicit operator step; the watcher does not yet bootstrap this RBAC automatically. The Role disappears with the namespace during cleanup.
+   For an approved **vCluster** preview, the evaluator also writes two fixed installer-grant manifests beside the XR in trusted GitOps. Argo CD retries their sync until Crossplane creates the preview namespace. The grant is namespaced and disappears with that namespace after provider-helm uninstalls the Release. The older [manual bootstrap script](deploy/local/bootstrap-vcluster-helm-installer.sh) remains only as a recovery tool; routine requests need no operator grant step.
 
 6. The pinned [Backstage portal](platform/backstage/portal) includes the Incident Tracker catalog and request template locations, GitHub Scaffolder action, MCP Actions Backend, and [preview status action](platform/backstage/portal/plugins/preview-backend/src/index.ts). Provide `GITHUB_TOKEN` and a local `MCP_TOKEN`, run the status API, then start the portal. See [Backstage integration](docs/backstage.md) for commands and the current verification boundary.
 

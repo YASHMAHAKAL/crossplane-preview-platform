@@ -100,6 +100,9 @@ func TestReconcileLifecycle(t *testing.T) {
 	}
 	name, _ := PreviewName(config.Service, snapshot.PR.Number)
 	xrFile := filepath.Join(store.Root, "previews", name, "previewenvironment.json")
+	if _, err := os.Stat(filepath.Join(store.Root, "previews", name, installerRoleFile)); !os.IsNotExist(err) {
+		t.Fatalf("namespace preview received installer grant: %v", err)
+	}
 	data, err := os.ReadFile(xrFile)
 	if err != nil {
 		t.Fatal(err)

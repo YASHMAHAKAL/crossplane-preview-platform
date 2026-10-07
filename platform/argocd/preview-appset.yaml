@@ -6,15 +6,20 @@ metadata:
   name: preview-environments
   namespace: argocd
 spec:
-  description: Evaluator-owned PreviewEnvironment XRs only
+  description: Evaluator-owned PreviewEnvironment XRs and fixed vCluster installer grants
   sourceRepos:
     - git@github.com:YASHMAHAKAL/preview-gitops.git
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: argocd
+      namespace: incident-tracker-pr-*
   clusterResourceWhitelist:
     - group: preview.platform.example.org
       kind: PreviewEnvironment
+  namespaceResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -40,13 +45,19 @@ spec:
         targetRevision: main
         path: '{{.path.path}}'
         directory:
-          include: previewenvironment.json
+          include: '*.json'
       destination:
         server: https://kubernetes.default.svc
-        namespace: argocd
+        namespace: '{{.path.basename}}'
       syncPolicy:
         automated:
           prune: true
           selfHeal: true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 30s
         syncOptions:
           - PrunePropagationPolicy=foreground

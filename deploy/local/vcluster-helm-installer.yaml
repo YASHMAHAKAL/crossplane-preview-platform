@@ -1,5 +1,5 @@
-# Apply only in an evaluator-created vCluster preview namespace. This Role is
-# deliberately namespaced; the provider receives no additional host-wide RBAC.
+# Manual recovery fallback. Routine vCluster previews receive this fixed
+# namespaced grant automatically from evaluator-authored GitOps.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

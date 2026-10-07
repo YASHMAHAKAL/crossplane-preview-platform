@@ -180,7 +180,8 @@ func (store Store) RemoveXR(name string) (bool, error) {
 		return false, err
 	}
 	for _, entry := range entries {
-		if entry.Name() != "previewenvironment.json" {
+		if !entry.Type().IsRegular() ||
+			(entry.Name() != "previewenvironment.json" && entry.Name() != installerRoleFile && entry.Name() != installerBindingFile) {
 			return false, errors.New("preview directory contains unexpected file")
 		}
 	}
@@ -253,8 +254,15 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 				result = decision(snapshot, "expired", "", "ttl-expired", expiresAt)
 				_, err = store.RemoveXR(name)
 			} else {
+				if result.Mode == "vcluster" {
+					err = store.WriteInstallerGrant(name, snapshot, result, config)
+				} else {
+					err = store.RemoveInstallerGrant(name)
+				}
 				var xr map[string]any
-				xr, err = MakeXR(snapshot, result, config)
+				if err == nil {
+					xr, err = MakeXR(snapshot, result, config)
+				}
 				if err == nil {
 					_, err = store.WriteXR(xr)
 				}

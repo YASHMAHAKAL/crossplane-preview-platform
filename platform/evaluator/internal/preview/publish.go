@@ -1,7 +1,9 @@
 package preview
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -82,7 +84,8 @@ func (store Store) validatePublishTree() error {
 					return nil
 				}
 				if !entry.IsDir() && entry.Type().IsRegular() &&
-					(relative == ".gitkeep" || (filepath.Dir(relative) != "." && entry.Name() == "previewenvironment.json")) {
+					(relative == ".gitkeep" || (filepath.Dir(relative) != "." &&
+						(entry.Name() == "previewenvironment.json" || entry.Name() == installerRoleFile || entry.Name() == installerBindingFile))) {
 					return nil
 				}
 			} else if !entry.IsDir() && entry.Type().IsRegular() &&
@@ -92,6 +95,74 @@ func (store Store) validatePublishTree() error {
 			return fmt.Errorf("unexpected path in trusted GitOps %s tree: %s", area, relative)
 		}); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
+		}
+		if area == "previews" {
+			entries, err := os.ReadDir(root)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					if err := validateInstallerGrant(filepath.Join(root, entry.Name()), entry.Name()); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateInstallerGrant(dir, name string) error {
+	xrBytes, err := os.ReadFile(filepath.Join(dir, "previewenvironment.json"))
+	if err != nil {
+		return fmt.Errorf("preview %s has no XR: %w", name, err)
+	}
+	var xr struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Spec struct {
+			ServiceRef string `json:"serviceRef"`
+			PR         struct {
+				Number int `json:"number"`
+			} `json:"pr"`
+			Decision struct {
+				Mode string `json:"mode"`
+			} `json:"decision"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(xrBytes, &xr); err != nil {
+		return fmt.Errorf("preview %s XR JSON: %w", name, err)
+	}
+	expectedName, err := PreviewName(xr.Spec.ServiceRef, xr.Spec.PR.Number)
+	if err != nil || xr.Metadata.Name != name || expectedName != name {
+		return fmt.Errorf("preview %s XR identity mismatch", name)
+	}
+	if xr.Spec.Decision.Mode != "vcluster" {
+		for _, filename := range []string{installerRoleFile, installerBindingFile} {
+			if _, err := os.Stat(filepath.Join(dir, filename)); err == nil {
+				return fmt.Errorf("preview %s has installer grant without vCluster decision", name)
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+		}
+		return nil
+	}
+	role, binding := InstallerGrant(name, Snapshot{PR: PullRequest{Number: xr.Spec.PR.Number}}, Config{Service: xr.Spec.ServiceRef})
+	for filename, expected := range map[string]any{installerRoleFile: role, installerBindingFile: binding} {
+		actualBytes, err := os.ReadFile(filepath.Join(dir, filename))
+		if err != nil {
+			return fmt.Errorf("preview %s missing %s: %w", name, filename, err)
+		}
+		var actual any
+		if err := json.Unmarshal(actualBytes, &actual); err != nil {
+			return err
+		}
+		actualCanonical, _ := json.Marshal(actual)
+		expectedCanonical, _ := json.Marshal(expected)
+		if !bytes.Equal(actualCanonical, expectedCanonical) {
+			return fmt.Errorf("preview %s has modified %s", name, filename)
 		}
 	}
 	return nil

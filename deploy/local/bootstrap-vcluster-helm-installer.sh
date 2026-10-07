@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Manual recovery fallback; the evaluator and Argo CD now apply this grant.
 set -euo pipefail
 
 if [[ $# -ne 1 || ! $1 =~ ^incident-tracker-pr-[1-9][0-9]*$ ]]; then

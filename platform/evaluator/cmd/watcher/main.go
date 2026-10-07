@@ -93,6 +93,9 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 			cleanupNames = append(cleanupNames, name)
 		}
 	}
+	if len(failures) > 0 {
+		return fmt.Errorf("%d reconciliation error(s); first: %w", len(failures), failures[0])
+	}
 	if publish {
 		if err := store.Publish(ctx, "Reconcile PR previews"); err != nil {
 			return fmt.Errorf("publish GitOps removal before cleanup check: %w", err)

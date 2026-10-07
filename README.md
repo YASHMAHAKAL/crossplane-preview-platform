@@ -18,7 +18,7 @@ Backstage UI or Codex via Backstage MCP
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
 - GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.2`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
-- The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. Synthetic evaluator inputs drove both a namespace preview and a vCluster preview through the private trusted GitOps repository, Argo CD, and Crossplane. Each Pulseboard URL returned HTTP 200. Closing each synthetic PR removed its GitOps path, Application, XR, and preview resources. The fixed IncidentPolicy CRD appeared only inside the vCluster. These were **synthetic inputs, not live GitHub PRs**. The real PR watcher and Backstage UI/MCP request path still need end-to-end verification. See [compatibility and feasibility](docs/compatibility.md).
+- The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. Two [real GitHub draft PRs](docs/live-pr-verification.md) exercised the watcher, CI artifact verification, trusted GitOps publishing, Argo sync, Crossplane reconciliation, local URLs, and close cleanup in namespace and vCluster modes. Both previews served Pulseboard with HTTP 200 and were removed after their PRs closed. The fixed IncidentPolicy CRD appeared only inside the vCluster. Backstage UI/MCP requests, PR updates, and a merged PR still need end-to-end verification. See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
 
@@ -37,7 +37,7 @@ go run ./cmd/evaluator -snapshot ../../tests/fixtures/closed.json -config config
 
 Each decision is JSON on stdout. Approved decisions create `previews/<service>-pr-<n>/previewenvironment.json`; the closed fixture removes its XR directory. `status/<name>.json` retains the decision record.
 
-The Composition render fixtures and local function instructions are in [tests/render/README.md](tests/render/README.md). Both render targets passed; the separate live checks above verified controller behavior for synthetic decisions.
+The Composition render fixtures and local function instructions are in [tests/render/README.md](tests/render/README.md). Both render targets passed; the separate [live PR checks](docs/live-pr-verification.md) verified controller behavior with real CI artifacts.
 
 ## Optional direct app and ingress smoke check
 
@@ -106,7 +106,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    go run ./cmd/status-api -gitops /path/to/preview-gitops -preview-port 8088
    ```
 
-   The watcher needs GitHub metadata/actions read access. The GitOps checkout uses your local Git credential helper for its push. Use separate credentials with narrow scopes where possible.
+   The watcher needs GitHub metadata and Actions artifact read access. An anonymous artifact download returned HTTP 401 in the real PR check, even though the source repository is public; supply a token with artifact read access. The GitOps checkout uses your local Git credential helper for its push. Use separate credentials with narrow scopes where possible.
 
    For each approved **vCluster** preview, once Crossplane creates its host namespace, an operator applies the fixed Helm installer Role and RoleBinding in that namespace. Run this from the repository root, substituting the actual PR number:
 

@@ -1,0 +1,22 @@
+{
+  "name": "@preview/plugin-preview-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "configSchema": "config.d.ts",
+  "backstage": {
+    "role": "backend-plugin",
+    "pluginId": "preview"
+  },
+  "scripts": {
+    "build": "backstage-cli package build",
+    "test": "backstage-cli package test"
+  },
+  "dependencies": {
+    "@backstage/backend-plugin-api": "^1.10.1"
+  },
+  "devDependencies": {
+    "@backstage/cli": "^0.36.6"
+  }
+}

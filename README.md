@@ -116,7 +116,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 
    The script verifies an approved `vcluster` XR and its Crossplane-managed namespace before granting `crossplane-system:preview-provider-helm` chart installation permissions there. It is an explicit operator step; the watcher does not yet bootstrap this RBAC automatically. The Role disappears with the namespace during cleanup.
 
-6. In an existing Backstage backend, register [the catalog entity](platform/backstage/catalog/incident-tracker.yaml) and [request template](platform/backstage/templates/request-preview/template.yaml). Install `@backstage/plugin-mcp-actions-backend`, expose catalog and scaffolder actions, and add [the preview status plugin](platform/backstage/plugin-preview-backend/src/index.ts). Set `preview.statusApiBaseUrl: http://127.0.0.1:8090` in Backstage config. See [Backstage integration](docs/backstage.md).
+6. The pinned [Backstage portal](platform/backstage/portal) includes the Incident Tracker catalog and request template locations, GitHub Scaffolder action, MCP Actions Backend, and [preview status action](platform/backstage/portal/plugins/preview-backend/src/index.ts). Provide `GITHUB_TOKEN` and a local `MCP_TOKEN`, run the status API, then start the portal. See [Backstage integration](docs/backstage.md) for commands and the current verification boundary.
 
 ## Demonstration checks
 

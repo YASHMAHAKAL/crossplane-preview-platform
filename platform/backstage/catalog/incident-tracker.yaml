@@ -9,7 +9,7 @@ metadata:
   tags: [incidents, preview, crossplane]
   links:
     - title: Request a preview
-      url: /create/templates/default/request-incident-tracker-preview
+      url: http://localhost:3000/create/templates/default/request-incident-tracker-preview
 spec:
   type: service
   lifecycle: experimental

@@ -1,0 +1,32 @@
+{
+  "name": "incident-tracker-pr-13",
+  "target": "ready",
+  "mode": "vcluster",
+  "headSHA": "e9e3b219daf6832b77b634eff1011f983bbc0ad0",
+  "outcome": "observed",
+  "observerStart": "2026-10-07T17:07:47.495538108Z",
+  "baselineAt": "2026-10-07T17:08:13.827105743Z",
+  "observedAt": "2026-10-07T17:11:12.549400001Z",
+  "durationMs": 178722,
+  "pollInterval": "5s",
+  "events": [
+    {
+      "at": "2026-10-07T17:07:47.495554228Z",
+      "phase": "pending-evaluation"
+    },
+    {
+      "at": "2026-10-07T17:08:17.547974176Z",
+      "phase": "provisioning"
+    },
+    {
+      "at": "2026-10-07T17:11:12.549400001Z",
+      "phase": "ready"
+    }
+  ],
+  "reasonCodes": [
+    "cluster-api-required"
+  ],
+  "evidence": [
+    "deploy/cluster/incident-policy.json:CustomResourceDefinition/incidentpolicies.incidents.demo.local"
+  ]
+}

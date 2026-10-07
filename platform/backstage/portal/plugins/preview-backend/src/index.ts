@@ -30,6 +30,17 @@ export const previewPlugin = createBackendPlugin({
           },
           action: async ({ input }) => {
             const response = await fetch(`${statusApi}/api/previews/incident-tracker-pr-${input.prNumber}`);
+            if (response.status === 404) {
+              return { output: {
+                name: `incident-tracker-pr-${input.prNumber}`,
+                phase: 'pending-evaluation',
+                reasonCodes: ['status-not-yet-recorded'],
+                evidence: ['The watcher has not recorded this PR yet; retry shortly.'],
+                headSHA: '',
+                prNumber: input.prNumber,
+                updatedAt: new Date().toISOString(),
+              } };
+            }
             if (!response.ok) throw new Error(`Preview status request failed: HTTP ${response.status}`);
             return { output: await response.json() };
           },

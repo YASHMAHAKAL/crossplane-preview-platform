@@ -31,7 +31,7 @@ The Backstage software template creates a repository that contains the app, cont
 
 1. A Scaffolder template creates the Incident Tracker repository, or a service action creates a preview-request PR for an existing registered service. An ordinary developer code PR with a valid preview contract is also eligible.
 2. The request UI captures service, PR or branch context, optional size/TTL within published bounds, and intended changes. It returns the GitHub PR URL and a request identifier. It does not directly deploy a preview.
-3. The user sees `waiting-for-ci`, `evaluating`, `approved`, `rejected`, `provisioning`, `ready`, `degraded`, `cleaning`, or `deleted`, with a reason. A ready preview has its local URL and isolation mode.
+3. Before the watcher writes its first status record, Backstage reports `pending-evaluation` without a head SHA or URL. Once recorded, the user sees `waiting-for-ci`, `evaluating`, `approved`, `rejected`, `provisioning`, `ready`, `degraded`, `cleaning`, or `deleted`, with a reason. A ready preview has its local URL and isolation mode.
 
 ### Request through Codex
 
@@ -45,7 +45,7 @@ The Backstage software template creates a repository that contains the app, cont
 2. CI builds/tests the application and produces an immutable image reference or digest. The evaluator waits for the required checks and verifies the artifact belongs to the current PR head. For an offline/local-only demonstration, use a deterministic fixture artifact and mark the run as simulated.
 3. The evaluator loads changed-file metadata plus the declared preview contract, applies deterministic policy, and records `namespace`, `vcluster`, or `rejected` with evidence. It never treats a natural-language request as authority for privileged resources.
 4. For an approved PR, it commits one normalized `PreviewEnvironment` XR in a trusted GitOps folder. Argo CD's directory generator creates or updates an Application. Crossplane reconciles the selected Composition. The app becomes reachable at a local preview URL.
-5. Further commits to the PR update the preview for the new head. Decisions and image references must be tied to that head so stale CI results cannot deploy the wrong revision.
+5. Further commits to the PR update the preview for the new head. Decisions and image references must be tied to that head so stale CI results cannot deploy the wrong revision. The local implementation withdraws the old XR while the new head waits for CI, so the URL can briefly be unavailable before the new revision is ready. A changed TTL is measured from the first approval rather than restarting the clock.
 6. Merge or close removes the GitOps folder; Argo CD prunes; Crossplane deletes the preview. The PR can be merged without any permanent deployment target in this project.
 
 ## What the preview shows

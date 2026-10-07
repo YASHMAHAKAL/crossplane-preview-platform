@@ -219,12 +219,14 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 		if result.Phase == "approved" {
 			if lifetime.FirstApprovedAt == "" {
 				lifetime.FirstApprovedAt = store.now().Format(time.RFC3339Nano)
-				lifetime.ExpiresAt = store.now().Add(time.Duration(snapshot.Request.TTLMinutes) * time.Minute).Format(time.RFC3339Nano)
 			}
-			expires, parseErr := time.Parse(time.RFC3339Nano, lifetime.ExpiresAt)
+			firstApproved, parseErr := time.Parse(time.RFC3339Nano, lifetime.FirstApprovedAt)
 			if parseErr != nil {
-				return Decision{}, fmt.Errorf("invalid saved expiry: %w", parseErr)
+				return Decision{}, fmt.Errorf("invalid saved first approval: %w", parseErr)
 			}
+			// A request update changes the lifetime without resetting its start.
+			expires := firstApproved.Add(time.Duration(snapshot.Request.TTLMinutes) * time.Minute)
+			lifetime.ExpiresAt = expires.Format(time.RFC3339Nano)
 			if !store.now().Before(expires) {
 				result = decision(snapshot, "expired", "", "ttl-expired", lifetime.ExpiresAt)
 				_, err = store.RemoveXR(name)

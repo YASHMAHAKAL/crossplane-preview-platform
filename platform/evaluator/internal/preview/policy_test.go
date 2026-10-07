@@ -1,6 +1,7 @@
 package preview
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -151,5 +152,79 @@ func TestPreviewExpiresFromFirstApproval(t *testing.T) {
 	status, err := store.Status(name, nil)
 	if err != nil || status.Phase != "expired" || status.URL != "" || status.ExpiresAt == "" {
 		t.Fatalf("status: %+v %v", status, err)
+	}
+}
+
+func TestReconcileUpdatedHeadAndLifetime(t *testing.T) {
+	snapshot, config := fixture()
+	config.Sizes["medium"] = Size{CPU: "500m", Memory: "512Mi"}
+	start := time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC)
+	current := start
+	store := Store{Root: t.TempDir(), Now: func() time.Time { return current }}
+	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "approved" {
+		t.Fatalf("initial approval: %+v %v", result, err)
+	}
+	name, _ := PreviewName(config.Service, snapshot.PR.Number)
+	xrFile := filepath.Join(store.Root, "previews", name, "previewenvironment.json")
+	statusFile := filepath.Join(store.Root, "status", name+".json")
+
+	current = start.Add(10 * time.Minute)
+	snapshot.PR.HeadSHA = strings.Repeat("c", 40)
+	snapshot.Request = Request{Size: "medium", TTLMinutes: 90}
+	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "waiting-for-ci" {
+		t.Fatalf("stale CI must wait: %+v %v", result, err)
+	}
+	if _, err := os.Stat(xrFile); !os.IsNotExist(err) {
+		t.Fatalf("old head XR remains: %v", err)
+	}
+
+	snapshot.CI.HeadSHA = snapshot.PR.HeadSHA
+	snapshot.CI.ImageDigest = "ghcr.io/demo/incident-tracker@sha256:" + strings.Repeat("d", 64)
+	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "approved" {
+		t.Fatalf("updated approval: %+v %v", result, err)
+	}
+	statusBytes, err := os.ReadFile(statusFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status struct {
+		FirstApprovedAt string `json:"firstApprovedAt"`
+		ExpiresAt       string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(statusBytes, &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.FirstApprovedAt != start.Format(time.RFC3339Nano) || status.ExpiresAt != start.Add(90*time.Minute).Format(time.RFC3339Nano) {
+		t.Fatalf("updated lifetime: %+v", status)
+	}
+	xrBytes, err := os.ReadFile(xrFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var xr struct {
+		Spec struct {
+			PR    PullRequest `json:"pr"`
+			Image struct {
+				Digest string `json:"digest"`
+			} `json:"image"`
+			Request Request `json:"request"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(xrBytes, &xr); err != nil {
+		t.Fatal(err)
+	}
+	if xr.Spec.PR.HeadSHA != snapshot.PR.HeadSHA || xr.Spec.Image.Digest != snapshot.CI.ImageDigest || xr.Spec.Request != snapshot.Request {
+		t.Fatalf("updated XR mismatch: %+v", xr.Spec)
+	}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	replayedStatus, err := os.ReadFile(statusFile)
+	if err != nil || !bytes.Equal(statusBytes, replayedStatus) {
+		t.Fatalf("replay changed status: %v", err)
+	}
+	current = start.Add(90 * time.Minute)
+	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "expired" {
+		t.Fatalf("updated expiry: %+v %v", result, err)
 	}
 }

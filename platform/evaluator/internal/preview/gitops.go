@@ -233,6 +233,7 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 			reason = "pr-merged"
 		}
 		result = decision(snapshot, "cleaning", "", reason)
+		result.Mode = previous.Decision.Mode
 		if previous.PR == snapshot.PR && (previous.Decision.Phase == "deleted" || previous.Decision.Phase == "cleanup-failed") {
 			result = previous.Decision
 		}

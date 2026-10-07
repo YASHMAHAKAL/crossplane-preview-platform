@@ -71,5 +71,7 @@ spec:
     links:
       - title: Preview request PR
         url: ${{ steps.pullRequest.output.remoteUrl }}
+      - title: Track preview status
+        url: /previews?prUrl=${{ steps.pullRequest.output.remoteUrl }}
       - title: Incident Tracker catalog entry
         url: /catalog/default/component/incident-tracker

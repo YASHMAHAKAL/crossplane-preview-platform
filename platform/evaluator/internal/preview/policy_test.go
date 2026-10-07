@@ -120,7 +120,7 @@ func TestReconcileLifecycle(t *testing.T) {
 	}
 	snapshot.PR.State = "merged"
 	result, err = store.Reconcile(snapshot, config)
-	if err != nil || result.Phase != "cleaning" || result.ReasonCodes[0] != "pr-merged" {
+	if err != nil || result.Phase != "cleaning" || result.Mode != "namespace" || result.ReasonCodes[0] != "pr-merged" {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
 	if _, err := os.Stat(xrFile); !os.IsNotExist(err) {

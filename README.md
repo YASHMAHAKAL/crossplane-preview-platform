@@ -19,7 +19,7 @@ Backstage UI or Codex via Backstage MCP
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
 - Approved vCluster requests include a fixed, evaluator-authored installer Role and RoleBinding in trusted GitOps. Argo CD applies the grant in the preview namespace; no manual installer bootstrap is needed. A synthetic run and real Backstage UI PR #10 verified automatic grant, vCluster readiness, HTTP 200, and deletion.
 - GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.2`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
-- The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#10](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, and close and merge cleanup. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI and kept the IncidentPolicy CRD inside the virtual API. PR #9 removed a namespace preview after merge. PR #10 proved the Backstage status page, its task deep link, and the automatic vCluster installer grant on a real PR. All nine approved previews returned HTTP 200 at `/healthz`; their resources were removed after close or merge. See [compatibility and feasibility](docs/compatibility.md).
+- The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#12](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, and close and merge cleanup. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI and kept the IncidentPolicy CRD inside the virtual API. PR #9 removed a namespace preview after merge. PR #10 proved the Backstage status page, its task deep link, and the automatic vCluster installer grant on a real PR. PRs #11 and #12 exposed reliability findings documented below. All eleven approved previews served `/healthz` before their resources were removed after close or merge. See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
 
@@ -41,6 +41,8 @@ go run ./cmd/evaluator -snapshot ../../tests/fixtures/closed.json -config config
 Each decision is JSON on stdout. Approved decisions create `previews/<service>-pr-<n>/previewenvironment.json`; the closed fixture removes its XR directory. `status/<name>.json` retains the decision record.
 
 The Composition render fixtures and local function instructions are in [tests/render/README.md](tests/render/README.md). Both render targets passed; the separate [live PR checks](docs/live-pr-verification.md) verified controller behavior with real CI artifacts.
+
+The [reliability evaluation](docs/reliability-evaluation.md) records raw timing for a namespace PR, an interrupted vCluster trial, and the failure cases that led to a stricter XR-plus-route readiness check and idempotent cleanup status. A Go observer at `platform/evaluator/cmd/preview-eval` produces timestamped JSON samples. The watcher must keep running for TTL expiry and close cleanup; an unattended expiry controller is not yet installed.
 
 ## Optional direct app and ingress smoke check
 
@@ -106,7 +108,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    ```sh
    cd platform/evaluator
    GITHUB_TOKEN=<read-only-token> go run ./cmd/watcher -config /path/to/config.json -gitops /path/to/preview-gitops -kube-context kind-preview-platform -preview-port 8088
-   go run ./cmd/status-api -gitops /path/to/preview-gitops -preview-port 8088
+   go run ./cmd/status-api -gitops /path/to/preview-gitops -kube-context kind-preview-platform -preview-port 8088
    ```
 
    The watcher needs GitHub metadata and Actions artifact read access. An anonymous artifact download returned HTTP 401 in the real PR check, even though the source repository is public; supply a token with artifact read access. It also needs read access to the named Kubernetes context to verify cleanup, plus access to the local ingress port. The GitOps checkout uses your local Git credentials for its push. Use separate credentials with narrow scopes where possible.

@@ -1,6 +1,7 @@
 package preview
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,6 +54,22 @@ func (store Store) Status(name string, client *http.Client) (Status, error) {
 		return status, nil
 	}
 	status.Phase = "provisioning"
+	if store.Readiness == nil {
+		status.Phase = "degraded"
+		status.Evidence = append(status.Evidence, "readiness checker is not configured")
+		return status, nil
+	}
+	checkContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ready, checkErr := store.Readiness.Ready(checkContext, name, status.HeadSHA)
+	cancel()
+	if checkErr != nil {
+		status.Phase = "degraded"
+		status.Evidence = append(status.Evidence, checkErr.Error())
+		return status, nil
+	}
+	if !ready {
+		return status, nil
+	}
 	if client == nil {
 		client = &http.Client{Timeout: 2 * time.Second}
 	}

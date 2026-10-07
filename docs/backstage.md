@@ -10,7 +10,7 @@ Use Node 22, Yarn 4.13.0 from the generated portal, and a GitHub token that can 
 
 ```sh
 cd platform/evaluator
-go run ./cmd/status-api -gitops /path/to/preview-gitops -preview-port 8088
+go run ./cmd/status-api -gitops /path/to/preview-gitops -kube-context kind-preview-platform -preview-port 8088
 ```
 
 In another terminal, set `GITHUB_TOKEN` and a random `MCP_TOKEN`, then start the portal:
@@ -22,7 +22,7 @@ node .yarn/releases/yarn-4.13.0.cjs tsc
 node .yarn/releases/yarn-4.13.0.cjs start
 ```
 
-The intended UI is `http://localhost:3000`, and the backend is bound to `127.0.0.1:7007`. The Incident Tracker catalog entry links to the request template under Create. The portal uses a guest sign-in for this local demonstration. Its `MCP_TOKEN` is configured as a static external access token with access restricted to the MCP, catalog, Scaffolder, and preview plugins. The sidebar's **PR Previews** page accepts a PR number or a PR URL. It polls the same Go status API used by the MCP status action every ten seconds and shows phase, mode, reason, evidence, source commit, expiry, live URL, and cleanup result. The Scaffolder task output includes a direct link to that page for the created PR. The backend proxies only authenticated GET requests to the local status API at `127.0.0.1:8090`; start that API before opening the page.
+The intended UI is `http://localhost:3000`, and the backend is bound to `127.0.0.1:7007`. The Incident Tracker catalog entry links to the request template under Create. The portal uses a guest sign-in for this local demonstration. Its `MCP_TOKEN` is configured as a static external access token with access restricted to the MCP, catalog, Scaffolder, and preview plugins. The sidebar's **PR Previews** page accepts a PR number or a PR URL. It polls the same Go status API used by the MCP status action every ten seconds and shows phase, mode, reason, evidence, source commit, expiry, live URL, and cleanup result. The Scaffolder task output includes a direct link to that page for the created PR. The backend proxies only authenticated GET requests to the local status API at `127.0.0.1:8090`; start that API with access to the `kind-preview-platform` Kubernetes context before opening the page. It now requires a current-head Ready XR as well as a healthy route before reporting `ready`.
 
 The MCP endpoint is `http://127.0.0.1:7007/api/mcp-actions/v1`. This repository's [project Codex config](../.codex/config.toml) points to it and reads the bearer token from `PREVIEW_MCP_TOKEN`. Set that environment variable to the **same value** as Backstage's `MCP_TOKEN` before launching a new Codex session from this repository; `codex mcp list` should show `preview_backstage` enabled. The token value is never stored in Git. The configuration prompts for write actions in interactive sessions. This local verification used the signed-in account selected by `CODEX_HOME=/home/yash/.codex-account3`; the other Codex accounts were not changed.
 

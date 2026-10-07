@@ -69,6 +69,7 @@ func TestPolicyTable(t *testing.T) {
 		}, "approved", "vcluster", "cluster-api-required"},
 		{"untrusted fork", func(s *Snapshot) { s.PR.Fork = true }, "rejected", "", "untrusted-pr"},
 		{"stale CI", func(s *Snapshot) { s.CI.HeadSHA = strings.Repeat("c", 40) }, "waiting-for-ci", "", "ci-not-current"},
+		{"failed CI", func(s *Snapshot) { s.CI.State = "failure" }, "rejected", "", "ci-failed"},
 		{"bad image", func(s *Snapshot) { s.CI.ImageDigest = "ghcr.io/demo/app:latest" }, "rejected", "", "invalid-image-digest"},
 		{"privileged manifest", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/node.json", Content: `{"apiVersion":"v1","kind":"Node"}`})
@@ -173,6 +174,18 @@ func TestCleanupObservationAndTimeout(t *testing.T) {
 	result, err := store.ObserveCleanup(name, []string{"namespaces/" + name}, nil)
 	if err != nil || result.Phase != "cleaning" || result.Evidence[0] != "namespaces/"+name {
 		t.Fatalf("pending cleanup: %+v %v", result, err)
+	}
+	statusFile := filepath.Join(store.Root, "status", name+".json")
+	before, err := os.ReadFile(statusFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(statusFile)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("cleaning replay changed evidence or timestamp: %v", err)
 	}
 	current = start.Add(CleanupTimeout)
 	result, err = store.ObserveCleanup(name, nil, os.ErrPermission)

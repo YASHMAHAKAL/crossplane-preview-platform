@@ -60,6 +60,7 @@ type Store struct {
 	Root        string
 	Now         func() time.Time
 	PreviewPort int
+	Readiness   ReadinessChecker
 }
 
 type statusRecord struct {
@@ -234,7 +235,7 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 		}
 		result = decision(snapshot, "cleaning", "", reason)
 		result.Mode = previous.Decision.Mode
-		if previous.PR == snapshot.PR && (previous.Decision.Phase == "deleted" || previous.Decision.Phase == "cleanup-failed") {
+		if previous.PR == snapshot.PR && (previous.Decision.Phase == "cleaning" || previous.Decision.Phase == "deleted" || previous.Decision.Phase == "cleanup-failed") {
 			result = previous.Decision
 		}
 		_, err = store.RemoveXR(name)

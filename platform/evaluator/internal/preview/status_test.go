@@ -1,6 +1,8 @@
 package preview
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,9 +10,15 @@ import (
 	"testing"
 )
 
+type readinessFunc func(context.Context, string, string) (bool, error)
+
+func (fn readinessFunc) Ready(ctx context.Context, name, sha string) (bool, error) {
+	return fn(ctx, name, sha)
+}
+
 func TestStatusOnlySurfacesURLAfterHealth(t *testing.T) {
 	snapshot, config := fixture()
-	store := Store{Root: t.TempDir(), PreviewPort: 8088}
+	store := Store{Root: t.TempDir(), PreviewPort: 8088, Readiness: readinessFunc(func(context.Context, string, string) (bool, error) { return true, nil })}
 	if _, err := store.Reconcile(snapshot, config); err != nil {
 		t.Fatal(err)
 	}
@@ -28,10 +36,21 @@ func TestStatusOnlySurfacesURLAfterHealth(t *testing.T) {
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
 	})}
+	store.Readiness = readinessFunc(func(context.Context, string, string) (bool, error) { return false, nil })
+	status, err = store.Status(name, healthy)
+	if err != nil || status.Phase != "provisioning" || status.URL != "" {
+		t.Fatalf("healthy route with unready XR: %+v, %v", status, err)
+	}
+	store.Readiness = readinessFunc(func(context.Context, string, string) (bool, error) { return true, nil })
 	request := httptest.NewRequest("GET", "/api/previews/"+name, nil)
 	response := httptest.NewRecorder()
 	store.StatusHandler(healthy).ServeHTTP(response, request)
 	if response.Code != 200 || !strings.Contains(response.Body.String(), `"phase":"ready"`) || !strings.Contains(response.Body.String(), name+".localhost:8088") {
 		t.Fatalf("status response: %d %s", response.Code, response.Body.String())
+	}
+	store.Readiness = readinessFunc(func(context.Context, string, string) (bool, error) { return false, errors.New("cluster unavailable") })
+	status, err = store.Status(name, healthy)
+	if err != nil || status.Phase != "degraded" || status.URL != "" || !strings.Contains(strings.Join(status.Evidence, " "), "cluster unavailable") {
+		t.Fatalf("readiness error must be visible without URL: %+v, %v", status, err)
 	}
 }

@@ -94,7 +94,7 @@ Crossplane v2 can compose ordinary Kubernetes resources, but package RBAC must p
 
 An ApplicationSet Git directory generator watches only the evaluator's `previews/*` directories. Configure an AppProject with the needed destination and resource allowlists. Set sync, pruning, and ApplicationSet deletion behavior so removing a directory deletes its Application and its XR. Verify the relevant finalizers and propagation with the pinned Argo CD version. The watcher first publishes GitOps removal, then checks the Argo Application, XR, host namespace (which owns the Helm Release, ingress, PVC, and secrets), persistent volumes referencing that namespace, and HTTP route. It reports `deleted` only after all are absent and a 30-second settle period has passed. If anything remains or an observation fails for ten minutes, report `cleanup-failed` with evidence and keep retrying. Preserve `pr-merged` separately from `pr-closed` in the status reason.
 
-Use local ingress hostnames such as `<service>-pr-<n>.localhost` only after confirming host resolution for the chosen OS. Document port mapping, TLS choice, and DNS/hosts setup. Surface a URL only after app health succeeds. Keep host-level exposure scoped to trusted demo traffic.
+Use local ingress hostnames such as `<service>-pr-<n>.localhost` only after confirming host resolution for the chosen OS. Document port mapping, TLS choice, and DNS/hosts setup. Surface a URL only after the XR reports current-generation `Synced=True` and `Ready=True` for the same PR head **and** app health succeeds. Keep host-level exposure scoped to trusted demo traffic.
 
 ## Backstage action boundary
 

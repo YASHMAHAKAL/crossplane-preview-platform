@@ -117,7 +117,7 @@ func TestReconcileLifecycle(t *testing.T) {
 	}
 	snapshot.PR.State = "merged"
 	result, err = store.Reconcile(snapshot, config)
-	if err != nil || result.Phase != "cleaning" {
+	if err != nil || result.Phase != "cleaning" || result.ReasonCodes[0] != "pr-merged" {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
 	if _, err := os.Stat(xrFile); !os.IsNotExist(err) {
@@ -125,6 +125,75 @@ func TestReconcileLifecycle(t *testing.T) {
 	}
 	if _, err := store.Reconcile(snapshot, config); err != nil {
 		t.Fatal(err)
+	}
+	result, err = store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "cleaning" {
+		t.Fatalf("settling cleanup: %+v %v", result, err)
+	}
+	store.Now = func() time.Time { return time.Now().Add(CleanupSettleDelay) }
+	result, err = store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "deleted" || result.ReasonCodes[0] != "pr-merged" {
+		t.Fatalf("verified cleanup: %+v %v", result, err)
+	}
+	result, err = store.Reconcile(snapshot, config)
+	if err != nil || result.Phase != "deleted" {
+		t.Fatalf("replay: %+v %v", result, err)
+	}
+	statusFile := filepath.Join(store.Root, "status", name+".json")
+	before, err := os.ReadFile(statusFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ObserveCleanup(name, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(statusFile)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("cleanup replay changed status: %v", err)
+	}
+}
+
+func TestCleanupObservationAndTimeout(t *testing.T) {
+	snapshot, config := fixture()
+	start := time.Date(2026, 10, 7, 10, 0, 0, 0, time.UTC)
+	current := start
+	store := Store{Root: t.TempDir(), Now: func() time.Time { return current }}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	snapshot.PR.State = "closed"
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	name, _ := PreviewName(config.Service, snapshot.PR.Number)
+	current = start.Add(9 * time.Minute)
+	result, err := store.ObserveCleanup(name, []string{"namespaces/" + name}, nil)
+	if err != nil || result.Phase != "cleaning" || result.Evidence[0] != "namespaces/"+name {
+		t.Fatalf("pending cleanup: %+v %v", result, err)
+	}
+	current = start.Add(CleanupTimeout)
+	result, err = store.ObserveCleanup(name, nil, os.ErrPermission)
+	if err != nil || result.Phase != "cleanup-failed" || result.ReasonCodes[1] != "cleanup-timeout" {
+		t.Fatalf("failed observation: %+v %v", result, err)
+	}
+	result, err = store.Reconcile(snapshot, config)
+	if err != nil || result.Phase != "cleanup-failed" {
+		t.Fatalf("failure replay: %+v %v", result, err)
+	}
+	current = current.Add(time.Minute)
+	result, err = store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "deleted" || result.ReasonCodes[0] != "pr-closed" {
+		t.Fatalf("recovered cleanup: %+v %v", result, err)
+	}
+	status, err := store.Status(name, nil)
+	if err != nil || status.Phase != "deleted" || status.URL != "" {
+		t.Fatalf("published status: %+v %v", status, err)
+	}
+	// A reopened PR must no longer inherit the terminal cleanup state.
+	snapshot.PR.State = "open"
+	result, err = store.Reconcile(snapshot, config)
+	if err != nil || result.Phase != "approved" {
+		t.Fatalf("reopened PR: %+v %v", result, err)
 	}
 }
 

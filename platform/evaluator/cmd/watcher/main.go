@@ -20,9 +20,11 @@ func main() {
 	interval := flag.Duration("interval", 30*time.Second, "GitHub polling interval")
 	once := flag.Bool("once", false, "run one reconciliation pass")
 	publish := flag.Bool("publish", true, "commit and push evaluator output after each pass")
+	kubeContext := flag.String("kube-context", "kind-preview-platform", "Kubernetes context used for read-only cleanup checks")
+	previewPort := flag.Int("preview-port", 8088, "local ingress port for cleanup route checks")
 	flag.Parse()
-	if *configPath == "" || *gitopsRoot == "" || *interval < 10*time.Second {
-		log.Fatal("require -config, -gitops, and interval of at least 10s")
+	if *configPath == "" || *gitopsRoot == "" || *interval < 10*time.Second || *kubeContext == "" || *previewPort < 1 || *previewPort > 65535 {
+		log.Fatal("require -config, -gitops, valid -kube-context and -preview-port, and interval of at least 10s")
 	}
 	data, err := os.ReadFile(*configPath)
 	if err != nil {
@@ -38,20 +40,25 @@ func main() {
 	}
 	reader := preview.GitHubReader{Client: &http.Client{Timeout: 30 * time.Second}, Token: token}
 	store := preview.Store{Root: *gitopsRoot}
+	observer := preview.KubectlCleanupObserver{Context: *kubeContext, PreviewPort: *previewPort}
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		if err := reconcile(ctx, reader, store, config, *publish); err != nil {
+		err := reconcile(ctx, reader, store, config, *publish, observer)
+		if err != nil {
 			log.Printf("reconcile: %v", err)
 		}
 		cancel()
 		if *once {
+			if err != nil {
+				os.Exit(1)
+			}
 			return
 		}
 		time.Sleep(*interval)
 	}
 }
 
-func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.Store, config preview.Config, publish bool) error {
+func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.Store, config preview.Config, publish bool, observer preview.CleanupObserver) error {
 	prs, err := reader.PullNumbers(ctx, config.Repository)
 	if err != nil {
 		return err
@@ -59,6 +66,7 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 	// Release capacity before evaluating newly opened PRs.
 	sort.SliceStable(prs, func(i, j int) bool { return prs[i].State == "closed" && prs[j].State != "closed" })
 	var failures []error
+	var cleanupNames []string
 	for _, pr := range prs {
 		name, err := preview.PreviewName(config.Service, pr.Number)
 		if err != nil {
@@ -81,9 +89,27 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 			continue
 		}
 		log.Printf("PR #%d head=%s phase=%s mode=%s reason=%v", pr.Number, snapshot.PR.HeadSHA, result.Phase, result.Mode, result.ReasonCodes)
+		if snapshot.PR.State == "closed" || snapshot.PR.State == "merged" {
+			cleanupNames = append(cleanupNames, name)
+		}
 	}
 	if publish {
 		if err := store.Publish(ctx, "Reconcile PR previews"); err != nil {
+			return fmt.Errorf("publish GitOps removal before cleanup check: %w", err)
+		}
+		for _, name := range cleanupNames {
+			remaining, observationErr := observer.Remaining(ctx, name)
+			result, err := store.ObserveCleanup(name, remaining, observationErr)
+			if err != nil {
+				failures = append(failures, fmt.Errorf("cleanup %s: %w", name, err))
+				continue
+			}
+			log.Printf("cleanup %s phase=%s reason=%v evidence=%v", name, result.Phase, result.ReasonCodes, result.Evidence)
+			if observationErr != nil {
+				failures = append(failures, fmt.Errorf("cleanup %s: %w", name, observationErr))
+			}
+		}
+		if err := store.Publish(ctx, "Record observed PR preview cleanup"); err != nil {
 			failures = append(failures, err)
 		}
 	}

@@ -31,7 +31,7 @@ The Backstage software template creates a repository that contains the app, cont
 
 1. A Scaffolder template creates the Incident Tracker repository, or a service action creates a preview-request PR for an existing registered service. An ordinary developer code PR with a valid preview contract is also eligible.
 2. The request UI captures service, PR or branch context, optional size/TTL within published bounds, and intended changes. It returns the GitHub PR URL and a request identifier. It does not directly deploy a preview.
-3. Before the watcher writes its first status record, Backstage reports `pending-evaluation` without a head SHA or URL. Once recorded, the user sees `waiting-for-ci`, `evaluating`, `approved`, `rejected`, `provisioning`, `ready`, `degraded`, `cleaning`, or `deleted`, with a reason. A ready preview has its local URL and isolation mode.
+3. Before the watcher writes its first status record, Backstage reports `pending-evaluation` without a head SHA or URL. Once recorded, the user sees `waiting-for-ci`, `evaluating`, `approved`, `rejected`, `provisioning`, `ready`, `degraded`, `cleaning`, `cleanup-failed`, or `deleted`, with a reason. A ready preview has its local URL and isolation mode. Merge and ordinary close have distinct reason codes; `deleted` follows observed cluster and route cleanup, while `cleanup-failed` identifies resources that remain after the timeout.
 
 ### Request through Codex
 

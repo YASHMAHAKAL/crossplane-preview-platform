@@ -62,6 +62,34 @@ type Store struct {
 	PreviewPort int
 }
 
+type statusRecord struct {
+	Name             string      `json:"name"`
+	PR               PullRequest `json:"pr"`
+	Decision         Decision    `json:"decision"`
+	UpdatedAt        string      `json:"updatedAt"`
+	FirstApprovedAt  string      `json:"firstApprovedAt,omitempty"`
+	ExpiresAt        string      `json:"expiresAt,omitempty"`
+	CleanupStartedAt string      `json:"cleanupStartedAt,omitempty"`
+}
+
+func (store Store) readStatus(name string) (statusRecord, error) {
+	if _, err := store.previewDir(name); err != nil {
+		return statusRecord{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(store.Root, "status", name+".json"))
+	if err != nil {
+		return statusRecord{}, err
+	}
+	var record statusRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return statusRecord{}, err
+	}
+	if record.Name != name {
+		return statusRecord{}, errors.New("status record name mismatch")
+	}
+	return record, nil
+}
+
 func (store Store) now() time.Time {
 	if store.Now != nil {
 		return store.Now().UTC()
@@ -164,31 +192,25 @@ func (store Store) WriteStatus(name string, snapshot Snapshot, result Decision, 
 		return err
 	}
 	filename := filepath.Join(store.Root, "status", name+".json")
-	previous, err := os.ReadFile(filename)
+	saved, err := store.readStatus(name)
 	if err == nil {
-		var saved struct {
-			PR              PullRequest `json:"pr"`
-			Decision        Decision    `json:"decision"`
-			FirstApprovedAt string      `json:"firstApprovedAt"`
-			ExpiresAt       string      `json:"expiresAt"`
+		oldPR, _ := json.Marshal(saved.PR)
+		newPR, _ := json.Marshal(snapshot.PR)
+		oldDecision, _ := json.Marshal(saved.Decision)
+		newDecision, _ := json.Marshal(result)
+		if bytes.Equal(oldPR, newPR) && bytes.Equal(oldDecision, newDecision) && saved.FirstApprovedAt == firstApprovedAt && saved.ExpiresAt == expiresAt {
+			return nil
 		}
-		if json.Unmarshal(previous, &saved) == nil {
-			oldPR, _ := json.Marshal(saved.PR)
-			newPR, _ := json.Marshal(snapshot.PR)
-			oldDecision, _ := json.Marshal(saved.Decision)
-			newDecision, _ := json.Marshal(result)
-			if bytes.Equal(oldPR, newPR) && bytes.Equal(oldDecision, newDecision) && saved.FirstApprovedAt == firstApprovedAt && saved.ExpiresAt == expiresAt {
-				return nil
-			}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	status := statusRecord{Name: name, PR: snapshot.PR, Decision: result,
+		UpdatedAt: store.now().Format(time.RFC3339Nano), FirstApprovedAt: firstApprovedAt, ExpiresAt: expiresAt}
+	if result.Phase == "cleaning" || result.Phase == "cleanup-failed" {
+		status.CleanupStartedAt = saved.CleanupStartedAt
+		if status.CleanupStartedAt == "" {
+			status.CleanupStartedAt = status.UpdatedAt
 		}
-	}
-	status := map[string]any{
-		"name": name, "pr": snapshot.PR, "decision": result,
-		"updatedAt": store.now().Format(time.RFC3339Nano),
-	}
-	if firstApprovedAt != "" {
-		status["firstApprovedAt"] = firstApprovedAt
-		status["expiresAt"] = expiresAt
 	}
 	return atomicJSON(filename, status)
 }
@@ -198,37 +220,37 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 	if err != nil {
 		return Decision{}, err
 	}
-	var lifetime struct {
-		FirstApprovedAt string `json:"firstApprovedAt"`
-		ExpiresAt       string `json:"expiresAt"`
+	previous, readErr := store.readStatus(name)
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return Decision{}, fmt.Errorf("read previous status: %w", readErr)
 	}
-	statusBytes, readErr := os.ReadFile(filepath.Join(store.Root, "status", name+".json"))
-	if readErr == nil {
-		if err := json.Unmarshal(statusBytes, &lifetime); err != nil {
-			return Decision{}, fmt.Errorf("read previous status: %w", err)
-		}
-	} else if !errors.Is(readErr, os.ErrNotExist) {
-		return Decision{}, readErr
-	}
+	firstApprovedAt, expiresAt := previous.FirstApprovedAt, previous.ExpiresAt
 	var result Decision
 	if snapshot.PR.State == "closed" || snapshot.PR.State == "merged" {
-		result = decision(snapshot, "cleaning", "", "pr-closed")
+		reason := "pr-closed"
+		if snapshot.PR.State == "merged" {
+			reason = "pr-merged"
+		}
+		result = decision(snapshot, "cleaning", "", reason)
+		if previous.PR == snapshot.PR && (previous.Decision.Phase == "deleted" || previous.Decision.Phase == "cleanup-failed") {
+			result = previous.Decision
+		}
 		_, err = store.RemoveXR(name)
 	} else {
 		result = Evaluate(snapshot, config)
 		if result.Phase == "approved" {
-			if lifetime.FirstApprovedAt == "" {
-				lifetime.FirstApprovedAt = store.now().Format(time.RFC3339Nano)
+			if firstApprovedAt == "" {
+				firstApprovedAt = store.now().Format(time.RFC3339Nano)
 			}
-			firstApproved, parseErr := time.Parse(time.RFC3339Nano, lifetime.FirstApprovedAt)
+			firstApproved, parseErr := time.Parse(time.RFC3339Nano, firstApprovedAt)
 			if parseErr != nil {
 				return Decision{}, fmt.Errorf("invalid saved first approval: %w", parseErr)
 			}
 			// A request update changes the lifetime without resetting its start.
 			expires := firstApproved.Add(time.Duration(snapshot.Request.TTLMinutes) * time.Minute)
-			lifetime.ExpiresAt = expires.Format(time.RFC3339Nano)
+			expiresAt = expires.Format(time.RFC3339Nano)
 			if !store.now().Before(expires) {
-				result = decision(snapshot, "expired", "", "ttl-expired", lifetime.ExpiresAt)
+				result = decision(snapshot, "expired", "", "ttl-expired", expiresAt)
 				_, err = store.RemoveXR(name)
 			} else {
 				var xr map[string]any
@@ -244,5 +266,5 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 	if err != nil {
 		return result, err
 	}
-	return result, store.WriteStatus(name, snapshot, result, lifetime.FirstApprovedAt, lifetime.ExpiresAt)
+	return result, store.WriteStatus(name, snapshot, result, firstApprovedAt, expiresAt)
 }

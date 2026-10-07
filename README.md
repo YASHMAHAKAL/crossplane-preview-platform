@@ -102,11 +102,11 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 
    ```sh
    cd platform/evaluator
-   GITHUB_TOKEN=<read-only-token> go run ./cmd/watcher -config /path/to/config.json -gitops /path/to/preview-gitops
+   GITHUB_TOKEN=<read-only-token> go run ./cmd/watcher -config /path/to/config.json -gitops /path/to/preview-gitops -kube-context kind-preview-platform -preview-port 8088
    go run ./cmd/status-api -gitops /path/to/preview-gitops -preview-port 8088
    ```
 
-   The watcher needs GitHub metadata and Actions artifact read access. An anonymous artifact download returned HTTP 401 in the real PR check, even though the source repository is public; supply a token with artifact read access. The GitOps checkout uses your local Git credential helper for its push. Use separate credentials with narrow scopes where possible.
+   The watcher needs GitHub metadata and Actions artifact read access. An anonymous artifact download returned HTTP 401 in the real PR check, even though the source repository is public; supply a token with artifact read access. It also needs read access to the named Kubernetes context to verify cleanup, plus access to the local ingress port. The GitOps checkout uses your local Git credentials for its push. Use separate credentials with narrow scopes where possible.
 
    For each approved **vCluster** preview, once Crossplane creates its host namespace, an operator applies the fixed Helm installer Role and RoleBinding in that namespace. Run this from the repository root, substituting the actual PR number:
 
@@ -123,6 +123,6 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 - Request `app-only` in Backstage UI or via its `scaffolder.execute-template` MCP action. The Go decision should be `namespace`, and the status action should eventually return `http://incident-tracker-pr-<n>.localhost:8088` after `/healthz` succeeds.
 - Request `incident-policy`; the fixed CRD file should lead to `vcluster`. Check the CRD exists **inside** the virtual cluster and is absent from the host cluster.
 - Edit a disallowed cluster manifest such as a `Node`; the evaluator should report `unsupported-cluster-resource` and write no XR.
-- Close or merge the PR. Check the GitOps XR directory, Argo CD Application, XR, host namespace, Helm Release, ingress, and app resources disappear. Do not treat the evaluator's `cleaning` decision alone as proof of resource deletion.
+- Close or merge the PR. The watcher publishes removal, checks the Argo CD Application, XR, host namespace, persistent volumes, and local route, then reports `deleted` after a 30-second settle period. A blocked check or remaining resource becomes `cleanup-failed` after ten minutes and is retried. `pr-closed` and `pr-merged` identify the trigger; inspect the status evidence for any failed cleanup.
 
 The preview hostname uses `.localhost` and host port 8088. The kind config maps host port 8088 to the ingress controller's NodePort 30080. Port 80 is occupied by another local service. If the host port changes, pass the same value to `status-api -preview-port`.

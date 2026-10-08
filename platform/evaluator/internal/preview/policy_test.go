@@ -58,7 +58,7 @@ func TestPolicyTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	crd := string(crdBytes)
-	deployment := strings.Replace(checkedInDeploymentConfig(t), `"replicas": 1`, `"replicas": 2`, 1)
+	deployment := strings.Replace(deploymentFixture, `"replicas":1`, `"replicas":2`, 1)
 	cases := []struct {
 		name                string
 		change              func(*Snapshot)
@@ -76,7 +76,7 @@ func TestPolicyTable(t *testing.T) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment})
 		}, "approved", "vcluster", "deployment-stack-change"},
 		{"invalid deployment config", func(s *Snapshot) {
-			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas": 2`, `"replicas": 4`, 1)})
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas":2`, `"replicas":4`, 1)})
 		}, "rejected", "", "invalid-deployment-config"},
 		{"deleted deployment config", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Status: "removed"})

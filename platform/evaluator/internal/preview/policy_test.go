@@ -64,6 +64,10 @@ func TestPolicyTable(t *testing.T) {
 		phase, mode, reason string
 	}{
 		{"app change", func(*Snapshot) {}, "approved", "namespace", "namespaced-app-change"},
+		{"docs only", func(s *Snapshot) { s.Files = []ChangedFile{{Path: "README.md"}, {Path: "docs/demo.md"}} }, "skipped", "", "no-previewable-change"},
+		{"legacy request only", func(s *Snapshot) { s.Files = []ChangedFile{{Path: "preview.request.json"}} }, "skipped", "", "no-previewable-change"},
+		{"no changed files", func(s *Snapshot) { s.Files = []ChangedFile{} }, "skipped", "", "no-previewable-change"},
+		{"unknown source", func(s *Snapshot) { s.Files = []ChangedFile{{Path: "other-app/index.html"}} }, "rejected", "", "unsupported-change"},
 		{"cluster API", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
 		}, "approved", "vcluster", "cluster-api-required"},
@@ -78,6 +82,9 @@ func TestPolicyTable(t *testing.T) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: strings.Replace(crd, `"high"`, `"critical"`, 1)})
 		}, "rejected", "", "unsupported-cluster-resource"},
 		{"workflow edit", func(s *Snapshot) { s.Files = append(s.Files, ChangedFile{Path: ".github/workflows/build.yml"}) }, "rejected", "", "unsupported-change"},
+		{"platform edit", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: "platform/crossplane/function/resources.go"})
+		}, "rejected", "", "unsupported-change"},
 		{"quota", func(s *Snapshot) { s.ActivePreviews = 3 }, "rejected", "", "capacity-exceeded"},
 	}
 	for _, tc := range cases {

@@ -52,7 +52,7 @@ if "$portal"; then
     portal_token=$(< "$HOME/.local/state/crossplane-preview-platform/mcp-token")
   fi
   [[ -n "$portal_token" ]] || fail 'set PREVIEW_MCP_TOKEN or use the local mcp-token file for authenticated catalog checks'
-  for entity in component/default/incident-tracker template/default/request-incident-tracker-preview; do
+  for entity in component/default/incident-tracker; do
     catalog_code=
     for attempt in {1..12}; do
       catalog_code=$(printf 'header = "Authorization: Bearer %s"\n' "$portal_token" |
@@ -63,5 +63,5 @@ if "$portal"; then
     done
     [[ "$catalog_code" == 200 ]] || fail "Backstage catalog is unavailable for $entity (HTTP $catalog_code)"
   done
-  echo 'verify: Backstage frontend and Incident Tracker catalog/template are ready'
+  echo 'verify: Backstage frontend and Incident Tracker catalog are ready'
 fi

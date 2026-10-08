@@ -5,18 +5,20 @@ description: Build and evolve this repository's local, explainable PR preview pl
 
 # Build the PR preview platform
 
-Use this skill when implementing or changing the project rooted at `crossplane-preview-platform`. It captures the product contract and the unusual boundaries between the request interface, evaluator, GitOps, Crossplane, and preview workloads. For a narrow edit, read only the reference relevant to that edit.
+Use this skill when implementing or changing the project rooted at `crossplane-preview-platform`. It captures the product contract and boundaries between source PRs, the evaluator, GitOps, Crossplane, and preview workloads. For a narrow edit, read only the reference relevant to that edit.
 
 ## Product contract
 
-Build a working local platform where a person can request or discover a service through Backstage UI **or** Codex through Backstage MCP actions, open or update a GitHub PR, receive an explained decision, and visit a live PR preview. A trusted **Go evaluator** chooses a namespace or vCluster from the service's supported preview contract and the PR's actual needs. Argo CD syncs only evaluator-authored GitOps state. Crossplane v2 reconciles one `PreviewEnvironment` cluster-scoped XR through one of two Compositions, both calling a custom Go Composition Function. Merging or closing a PR removes the preview. Use a polished Incident Tracker app as the demonstration service.
+A developer changes source files and opens or updates a GitHub PR. The platform automatically evaluates the changed files, publishes an explained decision, and serves a live preview for supported changes. The developer never selects an isolation mode or submits a separate preview request. Backstage UI and Codex through Backstage MCP discover the service and show the same PR status. A trusted **Go evaluator** chooses a namespace or vCluster from the PR's actual needs. Argo CD syncs only evaluator-authored GitOps state. Crossplane v2 reconciles one `PreviewEnvironment` cluster-scoped XR through one of two Compositions, both calling a custom Go Composition Function. Merging or closing a PR removes the preview. Use the Incident Tracker app as the demonstration service.
+
+Current migration stage: Incident Tracker app changes automatically get namespace previews. A direct PR with the exact allowlisted IncidentPolicy CRD can get a vCluster. General deployment and Crossplane changes still fail closed; the next phases must add inspected resource policy and virtual-cluster testing before accepting them. Backstage templates may later create ordinary source changes, but must not offer a preview-mode selector.
 
 The target is a local `kind` environment. A merged PR does not trigger permanent staging or production deployment. Keep the platform runnable without paid cloud infrastructure or a paid vCluster tier; external GitHub/GHCR use may still require network access and an account. The default demonstration accepts only trusted PRs from repositories and authors configured by the local operator. vCluster shared nodes are not an isolation boundary for untrusted code.
 
 ## Essential implementation rules
 
 1. Inspect the current repository and user request before changing files. Honor later user decisions over this baseline, and update the reference that owns any changed contract.
-2. Preserve one request model for Backstage UI and Codex. Codex discovers catalog entities, capabilities, accepted inputs, and request status via Backstage actions; it does not bypass the evaluator to create an XR or mutate the host cluster.
+2. Treat the source PR diff as the preview trigger for both IDE and future Backstage-created changes. Codex discovers catalog entities and PR status through Backstage actions; it does not bypass the evaluator to create an XR or mutate the host cluster.
 3. Keep policy decisions outside the Composition Function. Implement the evaluator in Go: it decides `namespace`, `vcluster`, or `rejected` with evidence. The function renders deterministic resources for the selected Composition; it does not inspect GitHub or apply policy to raw PR data.
 4. Never sync unreviewed PR manifests directly to the host cluster. Verify the PR source and CI artifact, normalize the allowed inputs, write a validated XR to a separate trusted GitOps path, and let Argo CD apply that path.
 5. Use Crossplane v2 semantics deliberately: a modern cluster-scoped XRD (`scope: Cluster`) can compose namespaced resources. Keep the XRD, Compositions, function input, evaluator output, and fixtures aligned. Prefer pinned compatible releases; check current upstream documentation before relying on version-specific fields.
@@ -35,6 +37,6 @@ The target is a local `kind` environment. A merged PR does not trigger permanent
 
 ## How to work
 
-Start with the smallest vertical slice that proves a real decision and a reachable app, then extend it to the second isolation mode and both request surfaces. Make each slice reviewable: implementation, focused verification, and a short note about what works and what remains. Keep names and schemas stable once external components consume them. If a proposed dependency or API is unavailable, run a small feasibility spike, document the evidence, and choose the narrowest compatible alternative without changing the product outcome.
+Work in phases. Finish and verify the app-diff namespace path first, then extend safe deployment and Crossplane change evaluation in a virtual cluster, and finally add Backstage source-change templates and cluster visibility. Make each slice reviewable: implementation, focused verification, and a short note about what works and what remains. Keep names and schemas stable once external components consume them.
 
-The project is done when the two request surfaces, two accepted isolation paths, rejected path, preview update, URL and reason reporting, and merge/close cleanup all work in a documented local demonstration; the render and policy checks pass; and the repository explains setup, version pins, resource limits, and observed results.
+The revised project is done when supported app, deployment, and Crossplane source changes trigger appropriate previews directly from PRs; Backstage can create ordinary source changes and show the local cluster; both isolation paths, rejection, preview update, URL and reason reporting, and merge/close cleanup work in a documented local demonstration; and render and policy checks pass.

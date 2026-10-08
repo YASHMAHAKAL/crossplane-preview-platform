@@ -5,20 +5,21 @@ A local portfolio project that turns a trusted GitHub PR into an explained previ
 For a repeatable local setup, start with the [setup and verification runbook](docs/local-setup.md): `deploy/local/preflight.sh`, `deploy/local/bootstrap.sh`, `deploy/local/start-portal.sh`, then `deploy/local/verify-platform.sh --portal`. The [short demo guide](docs/demo.md) covers both preview modes and cleanup. The GitHub PR flow needs access to the separate private GitOps repository; offline tests remain available without it.
 
 ```text
-Backstage UI or Codex via Backstage MCP
-    -> Scaffolder opens/updates a GitHub PR
+Developer changes Incident Tracker files and opens/updates a GitHub PR
     -> GitHub Actions tests and publishes a GHCR image + head-bound artifact
-    -> Go watcher validates PR, request, allowed capability, CI, capacity
+    -> Go watcher validates PR, changed files, CI, and capacity
     -> trusted GitOps repo -> Argo CD ApplicationSet -> Crossplane v2 XR
     -> namespace or vCluster -> Pulseboard URL after health check
     -> merged/closed PR or expired TTL removes XR path -> Argo CD prunes
+Backstage UI and Codex via Backstage MCP -> catalog discovery and PR status
 ```
 
 ## Current implementation
 
 - Pulseboard has a responsive operations dashboard, seeded incidents, severity and status filters, service health, details, updates, notes, and a JSON API.
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
-- Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog/template and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
+- Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
+- The current PR workflow automatically previews Incident Tracker app changes in a namespace. Backstage shows the service and preview status; it does not request an isolation mode. The fixed IncidentPolicy CRD remains an allowed vCluster input for a direct PR. General deployment and Crossplane changes are rejected until their evaluation and sandboxing are implemented.
 - Approved vCluster requests include a fixed, evaluator-authored installer Role and RoleBinding in trusted GitOps. Argo CD applies the grant in the preview namespace; no manual installer bootstrap is needed. A synthetic run and real Backstage UI PR #10 verified automatic grant, vCluster readiness, HTTP 200, and deletion.
 - GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.2`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
 - The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#14](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, close and merge cleanup, and TTL recovery. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI and kept the IncidentPolicy CRD inside the virtual API. PR #9 removed a namespace preview after merge. PR #10 proved the Backstage status page, its task deep link, and the automatic vCluster installer grant on a real PR. PRs #11–#14 produced the reliability findings and measurements documented below. All thirteen approved previews served `/healthz` before their resources were removed after close, merge, or TTL expiry. See [compatibility and feasibility](docs/compatibility.md).
@@ -105,7 +106,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 
 4. Clone the existing **private, separate** `YASHMAHAKAL/preview-gitops` repository into a dedicated local checkout, then run `kubectl apply -f platform/argocd/preview-appset.yaml`. It contains `previews/.gitkeep` and `status/.gitkeep`. The evaluator needs push access through the checkout's Git credential helper. Argo CD needs a read-only deploy key configured as a repository Secret; keep the private key and Secret manifest outside Git. Keep PR source branches out of Argo CD.
 
-5. Set `repository` and `trustedAuthors` in a private copy of [config.example.json](platform/evaluator/config.example.json). The source repository must contain `preview.request.json`, the Incident Tracker code at `app/incident-tracker`, and [preview-image.yaml](.github/workflows/preview-image.yaml). GHCR images must be readable by kind, for example by making the package public. On this Linux host, install the supervised Go watcher and status API after `gh auth login` and SSH access to the separate GitOps repository are configured:
+5. Set `repository`, `trustedAuthors`, and bounded preview defaults in a private copy of [config.example.json](platform/evaluator/config.example.json). The source repository must contain the Incident Tracker code at `app/incident-tracker` and [preview-image.yaml](.github/workflows/preview-image.yaml). GHCR images must be readable by kind, for example by making the package public. On this Linux host, install the supervised Go watcher and status API after `gh auth login` and SSH access to the separate GitOps repository are configured:
 
    ```sh
    deploy/local/install-preview-services.sh
@@ -127,12 +128,12 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 
    For an approved **vCluster** preview, the evaluator also writes two fixed installer-grant manifests beside the XR in trusted GitOps. Argo CD retries their sync until Crossplane creates the preview namespace. The grant is namespaced and disappears with that namespace after provider-helm uninstalls the Release. The older [manual bootstrap script](deploy/local/bootstrap-vcluster-helm-installer.sh) remains only as a recovery tool; routine requests need no operator grant step.
 
-6. The pinned [Backstage portal](platform/backstage/portal) includes the Incident Tracker catalog and request template locations, GitHub Scaffolder action, MCP Actions Backend, [preview status action](platform/backstage/portal/plugins/preview-backend/src/index.ts), and a **PR Previews** page. Provide `GITHUB_TOKEN` and a local `MCP_TOKEN`, run the status API, then start the portal. The completed request task links directly to the PR's status page. See [Backstage integration](docs/backstage.md) for commands and verification.
+6. The pinned [Backstage portal](platform/backstage/portal) includes the Incident Tracker catalog, MCP Actions Backend, [preview status action](platform/backstage/portal/plugins/preview-backend/src/index.ts), and a **PR Previews** page. Provide `GITHUB_TOKEN` and a local `MCP_TOKEN`, run the status API, then start the portal. Enter a source PR number to inspect its status. See [Backstage integration](docs/backstage.md) for commands and verification.
 
 ## Demonstration checks
 
-- Request `app-only` in Backstage UI or via its `scaffolder.execute-template` MCP action. The Go decision should be `namespace`, and the status action should eventually return `http://incident-tracker-pr-<n>.localhost:8088` after `/healthz` succeeds.
-- Request `incident-policy`; the fixed CRD file should lead to `vcluster`. Check the CRD exists **inside** the virtual cluster and is absent from the host cluster.
+- Change an Incident Tracker app file and open a source PR. The Go decision should be `namespace`, and the status action should eventually return `http://incident-tracker-pr-<n>.localhost:8088` after `/healthz` succeeds.
+- Open a direct PR with the exact allowlisted IncidentPolicy CRD file; it should lead to `vcluster`. Check the CRD exists **inside** the virtual cluster and is absent from the host cluster.
 - Edit a disallowed cluster manifest such as a `Node`; the evaluator should report `unsupported-cluster-resource` and write no XR.
 - Close or merge the PR, or let its TTL expire. The watcher publishes removal, checks the Argo CD Application, XR, host namespace, persistent volumes, and local route, then reports `deleted` after a 30-second settle period. A blocked check or remaining resource becomes `cleanup-failed` after ten minutes and is retried. `pr-closed`, `pr-merged`, and `ttl-expired` identify the trigger; inspect the status evidence for any failed cleanup. The status API hides the URL at the TTL deadline even if the watcher is temporarily stopped; actual resource removal still requires a running watcher and controllers.
 

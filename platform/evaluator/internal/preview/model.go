@@ -5,9 +5,25 @@ type Config struct {
 	Repository        string          `json:"repository"`
 	TrustedAuthors    []string        `json:"trustedAuthors"`
 	Sizes             map[string]Size `json:"sizes"`
+	DefaultSize       string          `json:"defaultSize"`
+	DefaultTTLMinutes int             `json:"defaultTTLMinutes"`
 	MaxTTLMinutes     int             `json:"maxTTLMinutes"`
 	MaxActivePreviews int             `json:"maxActivePreviews"`
 	AllowedCRD        AllowedCRD      `json:"allowedCRD"`
+}
+
+// PreviewDefaults keeps existing operator configs usable while the request
+// template is retired. Defaults come from trusted local config, never a PR.
+func (config Config) PreviewDefaults() Request {
+	size := config.DefaultSize
+	if size == "" {
+		size = "small"
+	}
+	ttl := config.DefaultTTLMinutes
+	if ttl == 0 {
+		ttl = 120
+	}
+	return Request{Size: size, TTLMinutes: ttl}
 }
 
 type Size struct {

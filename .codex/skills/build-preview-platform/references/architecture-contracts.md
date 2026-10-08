@@ -1,13 +1,12 @@
 # Architecture and contracts
 
-This file owns subsystem boundaries and suggested contracts. Exact API group, package versions, and field spellings should be finalized against pinned upstream versions during implementation; do not silently change semantics to fit an example.
+This file owns subsystem boundaries and suggested contracts. The current entry point is a source PR diff; the old request-template wording in historical details below must not be used to restore mode selection or `preview.request.json` parsing. Exact API group, package versions, and field spellings should be checked against pinned upstream versions.
 
 ## Control flow
 
 ```text
-Backstage UI ─┐
-              ├─> Catalog + Scaffolder/preview action ─> GitHub PR
-Codex via MCP ┘                                      │
+Developer IDE or future Backstage source-edit template ─> GitHub PR
+                                                     │
                                                      ▼
                                          CI image + PR file metadata
                                                      │
@@ -26,10 +25,10 @@ Codex via MCP ┘                                      │
                                                      │
                                                      ▼
                              health, decision, URL, cleanup status
-                                      └─> Backstage UI + Codex
+                                      └─> Backstage UI + Codex MCP
 ```
 
-The source repository and the trusted GitOps repository are distinct trust domains, even if the demo stores them as separate directories or branches under one GitHub account. The evaluator is the only component allowed to author preview XRs. Argo CD watches evaluator output, not arbitrary PR branches. Backstage submits requests and displays state; it is not an alternate reconciler.
+The source repository and the trusted GitOps repository are distinct trust domains. The evaluator is the only component allowed to author preview XRs. Argo CD watches evaluator output, never arbitrary PR branches. Backstage currently displays state; future edit templates may create ordinary source PRs, but remain outside reconciliation.
 
 ## Suggested repository areas
 
@@ -58,7 +57,7 @@ Define one modern cluster-scoped XRD (for example `preview.platform.example.org/
 | `serviceRef` | Stable Backstage/service identifier or repository coordinates from the allowlist. |
 | `pr.number`, `pr.headSHA` | Traceability and stale-build protection. |
 | `image.digest` | Immutable artifact that passed required checks; reject mutable `latest`. |
-| `request.size`, `request.ttl` | Bounded resource controls from the published capability schema. |
+| `request.size`, `request.ttl` | Bounded defaults from trusted local operator config, never PR-controlled. |
 | `preview.host` | Normalized, collision-free local hostname assigned by the evaluator. |
 | `decision.mode`, `decision.reasonCodes` | Selected `namespace` or `vcluster` and machine-readable explanation. |
 | `compositionRef` or supported v2 selector | Explicitly chooses the matching Composition; confirm exact supported field in the pinned release. |

@@ -1,32 +1,27 @@
-# PR preview platform demo
+# PR-driven preview demo
 
-This is a short, repeatable walkthrough for a portfolio review. Complete the [local setup](local-setup.md) first, keep `deploy/local/start-portal.sh` running, and run `deploy/local/verify-platform.sh --portal`. Have source PR write access and no other active previews so the configured capacity limit does not reject the request.
+Complete [local setup](local-setup.md), keep `deploy/local/start-portal.sh` running, and run `deploy/local/verify-platform.sh --portal`. Have source PR write access and capacity for a preview.
 
 ```mermaid
 flowchart LR
-    Person[Backstage UI or Codex] --> Template[One catalog template]
-    Template --> PR[GitHub PR]
+    Edit[Developer edits Incident Tracker] --> PR[GitHub PR]
     PR --> CI[Head-bound CI image artifact]
     CI --> Watcher[Go policy watcher]
-    Watcher -->|reason and normalized XR| GitOps[(Private trusted GitOps)]
-    GitOps --> Argo[Argo CD ApplicationSet]
+    Watcher -->|explained decision| Status[Backstage and Codex status]
+    Watcher -->|normalized XR| GitOps[(Private trusted GitOps)]
+    GitOps --> Argo[Argo CD]
     Argo --> XR[Crossplane v2 PreviewEnvironment]
-    XR --> Namespace[Namespace preview]
-    XR --> VCluster[vCluster OSS preview]
-    Namespace --> App[Incident Tracker URL]
-    VCluster --> App
-    Watcher --> Status[Status API]
-    XR --> Status
+    XR --> App[Namespace app URL]
     App --> Status
-    Status --> Person
 ```
 
-## Live sequence
+## Live namespace sequence
 
-1. **Discover the service.** Open `http://localhost:3000`, select Incident Tracker in the catalog, and open **Request a preview**. Show the accepted inputs: request ID, repository, size, TTL, and capability. In Codex, ask what the service accepts; it uses the same catalog and template through Backstage MCP.
-2. **Request a namespace preview.** Choose `app-only`, `small`, and a short bounded TTL. Backstage creates a PR. Show the `Preview image` check for the PR head and the task's **Track preview status** link. The status first waits for CI, then explains `namespace`/`namespaced-app-change`, and finally shows the live URL after Crossplane and the app are ready. Run `deploy/local/verify-preview.sh <PR> namespace`, then open Pulseboard and change an incident status.
-3. **Show the policy decision.** Point out that the GitOps repository contains a normalized XR authored by the watcher. Argo CD watches that private repository, never the PR branch. The status page shows the reason, source SHA, expiry, and observed state.
-4. **Request a vCluster preview.** Use a new request ID with `incident-policy`. The fixed CRD is the supported cluster API need. The evaluator should explain `vcluster`/`cluster-api-required`. Run `deploy/local/verify-preview.sh <PR> vcluster`; show the app's vCluster context and confirm the IncidentPolicy CRD is absent from the host API. Earlier [live evidence](live-pr-verification.md) includes the virtual API check.
-5. **Clean up.** Close each test PR. Wait for `deleted`/`cleanup-verified`, run `deploy/local/verify-preview.sh <PR> deleted`, and show the URL now returns 404. The [reliability evaluation](reliability-evaluation.md) includes a real five-minute TTL outage/restart trial, not just a happy-path close.
+1. Create a branch from `main`, change a visible string or style in `app/incident-tracker/`, push it, and open a source PR. Do not add `preview.request.json` or select an environment type.
+2. Wait for the `Preview image` run for the PR's current head. Enter the PR number in Backstage **PR Previews**, or use Codex `preview.get-status`. The watcher should explain `namespace` and `namespaced-app-change` with the changed path.
+3. Wait for `ready`, run `deploy/local/verify-preview.sh <PR> namespace`, and open the displayed URL. Confirm the actual app edit appears. The trusted GitOps repository should contain a normalized XR, never the raw PR manifest.
+4. Close the PR. Wait for `deleted` and `cleanup-verified`, then run `deploy/local/verify-preview.sh <PR> deleted` to check Argo, XR, namespace, volume, and route cleanup.
 
-The live request portions create GitHub PRs and GHCR images, so use them only in the configured source repository and close the demo PRs when finished. The setup and verification scripts themselves are read-only with respect to source PRs. Do not present a single local run as a production availability or p95 performance claim; the measurements report individual samples and the user-session dependency of the local watcher.
+A direct PR containing the exact allowlisted IncidentPolicy CRD in `deploy/cluster/` can exercise the existing vCluster path. General deployment and Crossplane edits are currently rejected while their evaluation path is being built. The [historical live evidence](live-pr-verification.md) covers both modes under the earlier request-template flow; do not present it as proof of automatic platform-change evaluation.
+
+Live demos create source PRs and GHCR images. Close demo PRs when finished. The local watcher requires the user's systemd manager and cluster to remain available; the [reliability evaluation](reliability-evaluation.md) reports individual samples rather than production availability claims.

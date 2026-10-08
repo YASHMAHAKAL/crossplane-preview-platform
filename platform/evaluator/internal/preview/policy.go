@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "1"
+const PolicyVersion = "2"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -50,22 +50,9 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		snapshot.Request.TTLMinutes > config.MaxTTLMinutes {
 		return decision(snapshot, "rejected", "", "invalid-request", "size or TTL outside published bounds")
 	}
-	if snapshot.ActivePreviews >= config.MaxActivePreviews {
-		return decision(snapshot, "rejected", "", "capacity-exceeded", fmt.Sprintf("active=%d", snapshot.ActivePreviews))
-	}
-	if snapshot.CI.HeadSHA != snapshot.PR.HeadSHA || snapshot.CI.State == "pending" {
-		return decision(snapshot, "waiting-for-ci", "", "ci-not-current")
-	}
-	if snapshot.CI.State != "success" {
-		return decision(snapshot, "rejected", "", "ci-failed")
-	}
-	if !digestPattern.MatchString(snapshot.CI.ImageDigest) ||
-		!strings.HasPrefix(snapshot.CI.ImageDigest, "ghcr.io/"+strings.ToLower(config.Repository)+"@sha256:") {
-		return decision(snapshot, "rejected", "", "invalid-image-digest")
-	}
-
 	needsVirtualCluster := false
 	evidence := []string{}
+	appChanges := []string{}
 	for _, file := range snapshot.Files {
 		if file.Path == "" || strings.Contains(file.Path, "\\") || strings.HasPrefix(file.Path, "/") ||
 			path.Clean(file.Path) != file.Path || strings.HasPrefix(file.Path, "../") {
@@ -110,16 +97,38 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 			evidence = append(evidence, file.Path+":CustomResourceDefinition/"+manifest.Metadata.Name)
 			continue
 		}
-		if strings.HasPrefix(file.Path, "deploy/") || strings.HasPrefix(file.Path, "platform/") ||
-			strings.HasPrefix(file.Path, ".github/workflows/") || file.Path == "preview.contract.json" {
-			return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
+		if strings.HasPrefix(file.Path, "app/incident-tracker/") {
+			appChanges = append(appChanges, file.Path)
+			continue
 		}
+		if file.Path == "preview.request.json" || file.Path == "README.md" || strings.HasPrefix(file.Path, "docs/") {
+			continue // Legacy request files and documentation do not request a preview.
+		}
+		return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
+	}
+	if !needsVirtualCluster && len(appChanges) == 0 {
+		return decision(snapshot, "skipped", "", "no-previewable-change")
+	}
+	if snapshot.ActivePreviews >= config.MaxActivePreviews {
+		return decision(snapshot, "rejected", "", "capacity-exceeded", fmt.Sprintf("active=%d", snapshot.ActivePreviews))
+	}
+	if snapshot.CI.HeadSHA != snapshot.PR.HeadSHA || snapshot.CI.State == "pending" {
+		return decision(snapshot, "waiting-for-ci", "", "ci-not-current")
+	}
+	if snapshot.CI.State != "success" {
+		return decision(snapshot, "rejected", "", "ci-failed")
+	}
+	if !digestPattern.MatchString(snapshot.CI.ImageDigest) ||
+		!strings.HasPrefix(snapshot.CI.ImageDigest, "ghcr.io/"+strings.ToLower(config.Repository)+"@sha256:") {
+		return decision(snapshot, "rejected", "", "invalid-image-digest")
 	}
 	mode, reason := "namespace", "namespaced-app-change"
 	capabilities := []string{}
 	if needsVirtualCluster {
 		mode, reason = "vcluster", "cluster-api-required"
 		capabilities = append(capabilities, "incident-policy")
+	} else if len(appChanges) > 0 {
+		evidence = append(evidence, appChanges[0])
 	}
 	result := decision(snapshot, "approved", mode, reason, evidence...)
 	result.Capabilities = capabilities

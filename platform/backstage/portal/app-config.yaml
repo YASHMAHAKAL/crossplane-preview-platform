@@ -201,12 +201,6 @@ catalog:
     - type: file
       target: ../../examples/entities.yaml
 
-    # Local example template
-    - type: file
-      target: ../../examples/template/template.yaml
-      rules:
-        - allow: [Template]
-
     # Local example organizational data
     - type: file
       target: ../../examples/org.yaml
@@ -220,11 +214,6 @@ catalog:
       target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/catalog/platform-team.yaml
       rules:
         - allow: [Group]
-
-    - type: url
-      target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/templates/request-preview/template.yaml
-      rules:
-        - allow: [Template]
 
     ## Uncomment these lines to add more example data
     # - type: url
@@ -247,8 +236,8 @@ permission:
 # see https://backstage.io/docs/ai/mcp-actions for more details
 mcpActions:
   name: Preview Platform
-  description: Discover Incident Tracker capabilities, request a PR preview, and read its decision and live URL.
-  instructions: Inspect the Incident Tracker catalog entry and request template inputs before executing a preview request.
+  description: Discover Incident Tracker and read the decision and live URL for a code pull request.
+  instructions: Inspect the Incident Tracker catalog entry, then use preview.get-status with the pull request number. Previews start automatically from supported PR changes.
 
 preview:
   statusApiBaseUrl: http://127.0.0.1:8090

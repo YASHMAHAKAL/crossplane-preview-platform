@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -36,7 +35,6 @@ func zipRecord(t *testing.T, record any) []byte {
 func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	digest := "ghcr.io/demo/incident-tracker@sha256:" + strings.Repeat("b", 64)
-	request := base64.StdEncoding.EncodeToString([]byte(`{"size":"medium","ttlMinutes":90}`))
 	artifact := zipRecord(t, map[string]string{"headSHA": sha, "imageDigest": digest})
 	calls := []string{}
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -45,8 +43,6 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 		switch req.URL.Path {
 		case "/repos/demo/incident-tracker/pulls/42":
 			body = []byte(`{"number":42,"state":"open","user":{"login":"demo"},"head":{"sha":"` + sha + `","repo":{"full_name":"demo/incident-tracker"}}}`)
-		case "/repos/demo/incident-tracker/contents/preview.request.json":
-			body = []byte(`{"encoding":"base64","content":"` + request + `"}`)
 		case "/repos/demo/incident-tracker/pulls/42/files":
 			body = []byte(`[{"filename":"app/incident-tracker/src/server.js"}]`)
 		case "/repos/demo/incident-tracker/actions/runs":
@@ -65,10 +61,10 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Request.Size != "medium" || got.Request.TTLMinutes != 90 || got.CI.ImageDigest != digest || got.CI.HeadSHA != sha {
+	if got.Request.Size != "small" || got.Request.TTLMinutes != 120 || got.CI.ImageDigest != digest || got.CI.HeadSHA != sha {
 		t.Fatalf("unexpected snapshot: %+v", got)
 	}
-	if len(calls) != 6 {
-		t.Fatalf("expected six GitHub reads, got %v", calls)
+	if len(calls) != 5 {
+		t.Fatalf("expected five GitHub reads with no request-file lookup, got %v", calls)
 	}
 }

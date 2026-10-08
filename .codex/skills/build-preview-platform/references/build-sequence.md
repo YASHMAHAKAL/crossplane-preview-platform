@@ -1,5 +1,13 @@
 # Build sequence and decision gates
 
+## Current migration order
+
+1. Accept real Incident Tracker app file changes from trusted source PRs, choose namespace automatically, verify the visible app edit and close cleanup. Ignore `preview.request.json` as a trigger. This is the present phase.
+2. Add content-aware evaluation for supported deployment and Crossplane changes, with a tested virtual cluster path and explicit rejection for unsupported host-impacting edits.
+3. Add Backstage templates that propose real source file changes and open ordinary PRs, then show local cluster resources with scoped access. Keep catalog/status available to Codex MCP.
+
+The original sequence below describes how the initial request-template prototype was built. It is historical and must not reintroduce manual preview-mode selection.
+
 Use the sequence to reduce integration risk. It is an implementation guide, not a reason to stop after a mock or a single demo branch. Build the smallest complete vertical slice before expanding features.
 
 ## 0. Pin versions and prove uncertain integrations

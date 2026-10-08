@@ -11,7 +11,7 @@ Run checks that prove user-visible behavior and controller ownership. The filena
 | Incident Tracker interaction checks | Create incident with service/severity/owner, filter and inspect seeded and new incidents, change status, and preserve accessible focus and responsive layout. |
 | `crossplane composition render` fixtures | Render both XRs against the matching Composition and function; inspect expected resource kinds, ownership, labels, and image digest. |
 | `crossplane resource validate` | Validate XRs and rendered resources against available schemas when the pinned CLI/CRDs support it. Supplement with API-server dry-run or integration checks for schemas the CLI cannot resolve. |
-| Backstage schema/action tests | UI template and MCP action reject invalid inputs and return matching request/status fields. |
+| Backstage status and catalog checks | Catalog exposes the service and PR status page; MCP catalog/status actions agree with the Go status API. Future source-edit templates open ordinary PRs without a mode selector. |
 | GitOps output checks | Only normalized XR/metadata appears in trusted paths; no raw PR manifests, secret values, or mutable image tags. |
 
 The render command generally needs XR, Composition, and Function package definitions, for example `crossplane composition render <xr> <composition> <functions>`. Pin the CLI and consult its matching command reference before scripting flags. Render output proves function logic, not provider behavior or local routing.
@@ -22,7 +22,7 @@ The render command generally needs XR, Composition, and Function package definit
 
 For this repository, `deploy/local/preflight.sh` checks prerequisites, `deploy/local/bootstrap.sh` converges the pinned local control plane and supervised watcher, `deploy/local/start-portal.sh` starts Backstage, and `deploy/local/verify-platform.sh --portal` checks the installed path. Keep the private Argo deploy key and MCP token outside Git. An idempotent rerun on an existing cluster is evidence for reuse; do not call it a fresh-machine validation unless the absent-cluster path has actually run.
 2. **Namespace PR:** Open a trusted code-only PR. Required CI succeeds for the current SHA. Evaluator explains `namespace`; GitOps contains one XR; Argo CD syncs; Crossplane reports ready; app health and create/update incident work at the local URL.
-3. **vCluster PR:** Open a trusted PR with the allowed `IncidentPolicy` requirement. Evaluator explains `vcluster`; a distinct virtual API server exists; the CRD and app are inside it; the host cluster does not gain the demo CRD; ingress reaches the app.
+3. **vCluster PR:** Open a trusted direct PR with the exact allowlisted `IncidentPolicy` CRD. Evaluator explains `vcluster`; a distinct virtual API server exists; the CRD and app are inside it; the host cluster does not gain the demo CRD; ingress reaches the app. General deployment and Crossplane changes require later evaluation work before this check applies to them.
 4. **Rejection:** Ask for an unsupported privileged change or exceed a configured quota. Backstage and Codex show the same explanation; no XR or preview resources appear.
 5. **Update:** Push a new PR head. After its own CI succeeds, the same preview serves the new digest. Old check results cannot make it ready.
 6. **Merge/close:** Test each event. GitOps path and Argo CD Application disappear; XR, composed resources, URL route, and credentials disappear. If deletion stalls, status says `cleanup-failed` with the remaining resource and reason.

@@ -8,8 +8,8 @@ metadata:
     github.com/project-slug: YASHMAHAKAL/crossplane-preview-platform
   tags: [incidents, preview, crossplane]
   links:
-    - title: Request a preview
-      url: http://localhost:3000/create/templates/default/request-incident-tracker-preview
+    - title: PR previews
+      url: http://localhost:3000/previews
 spec:
   type: service
   lifecycle: experimental

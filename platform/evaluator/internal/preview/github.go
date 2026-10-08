@@ -142,24 +142,12 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 		Author: pr.User.Login, Fork: pr.Head.Repo.FullName != config.Repository, State: state}
 	snapshot.ActivePreviews = active
 	snapshot.Files = []ChangedFile{}
+	snapshot.Request = config.PreviewDefaults()
 	if state != "open" {
 		return snapshot, nil
 	}
 	if snapshot.PR.Fork || !contains(config.TrustedAuthors, snapshot.PR.Author) {
 		return snapshot, nil // Policy records the untrusted-pr decision.
-	}
-	requestContent, err := reader.contentAtHead(ctx, repo, "preview.request.json", pr.Head.SHA)
-	if err != nil {
-		var httpErr githubHTTPError
-		if !errors.As(err, &httpErr) || httpErr.Code != http.StatusNotFound {
-			return snapshot, fmt.Errorf("read preview request: %w", err)
-		}
-		return snapshot, nil
-	} else {
-		if err := json.Unmarshal([]byte(requestContent), &snapshot.Request); err != nil {
-			snapshot.Request = Request{}
-			return snapshot, nil // Policy records invalid-request.
-		}
 	}
 	for page := 1; page <= 10; page++ {
 		var changed []struct {

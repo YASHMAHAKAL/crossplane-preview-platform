@@ -46,6 +46,7 @@ function labelForPhase(phase: string): string {
 function phaseTone(phase: string): { background: string; color: string } {
   if (phase === 'ready') return { background: '#d8f6e4', color: '#125734' };
   if (phase === 'deleted') return { background: '#e1ebff', color: '#1d4275' };
+  if (phase === 'skipped') return { background: '#e9edf3', color: '#415268' };
   if (phase === 'rejected' || phase === 'cleanup-failed' || phase === 'degraded') {
     return { background: '#ffe2df', color: '#8c2922' };
   }
@@ -143,11 +144,12 @@ export function PreviewStatusPage() {
   const isComplete = status?.phase === 'deleted';
   const isReady = status?.phase === 'ready' && Boolean(status.url);
   const isPending = status?.phase === 'pending-evaluation' || status?.phase === 'waiting-for-ci';
-  let lifecycleMessage = 'The platform is reconciling this request.';
+  let lifecycleMessage = 'The platform is evaluating this pull request.';
   if (isComplete) lifecycleMessage = 'The preview and its route have been removed.';
   else if (status?.phase === 'expired') lifecycleMessage = 'The preview deadline passed. Cleanup is pending.';
   else if (status?.phase === 'cleaning') lifecycleMessage = 'The platform is removing the preview and checking its resources.';
   else if (isReady) lifecycleMessage = 'The preview is ready to explore.';
+  else if (status?.phase === 'skipped') lifecycleMessage = 'This PR has no supported preview changes.';
   else if (isPending) lifecycleMessage = 'The platform is waiting for a current decision or build.';
   let modeLabel = 'Awaiting decision';
   if (status?.mode === 'vcluster') modeLabel = 'vCluster';
@@ -164,7 +166,7 @@ export function PreviewStatusPage() {
           PREVIEW CONTROL CENTER
         </Typography>
         <Typography variant="h4" component="h1" style={{ marginTop: 6, fontWeight: 700 }}>
-          Follow a PR from request to cleanup
+          Follow a PR from change to cleanup
         </Typography>
         <Typography variant="body1" style={{ marginTop: 12, maxWidth: 650, color: '#d9e5f5' }}>
           See why the platform chose a namespace or vCluster, when the Incident Tracker is ready, and whether deletion finished.
@@ -186,13 +188,13 @@ export function PreviewStatusPage() {
           {prNumber && <Button onClick={() => setRefreshKey(key => key + 1)} startIcon={<RefreshIcon />} disabled={loading}>Refresh</Button>}
         </form>
         {error && <Typography role="alert" style={{ color: '#a3312b', marginTop: 12 }}>{error}</Typography>}
-        {requested && !prNumber && !error && <Typography role="alert" style={{ color: '#a3312b', marginTop: 12 }}>The request link does not contain a valid project PR.</Typography>}
+        {requested && !prNumber && !error && <Typography role="alert" style={{ color: '#a3312b', marginTop: 12 }}>The link does not contain a valid project PR.</Typography>}
       </Paper>
 
       {!prNumber && !requested && (
         <Paper style={{ ...panelStyle, marginTop: 20 }}>
-          <Typography variant="h6">Start with a request</Typography>
-          <Typography color="textSecondary" style={{ marginTop: 8 }}>Open a preview request from the Incident Tracker catalog template, then follow its “Track preview status” link. You can also enter an existing PR above.</Typography>
+          <Typography variant="h6">Start with a pull request</Typography>
+          <Typography color="textSecondary" style={{ marginTop: 8 }}>Change Incident Tracker app files and open a PR in the source repository. The platform builds and evaluates the new head automatically. Enter the PR number above to follow its preview.</Typography>
         </Paper>
       )}
 

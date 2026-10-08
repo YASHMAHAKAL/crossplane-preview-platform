@@ -240,8 +240,24 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 		}
 		_, err = store.RemoveXR(name)
 	} else {
-		result = Evaluate(snapshot, config)
-		if result.Phase == "approved" {
+		previouslyExpired := false
+		if firstApprovedAt != "" && expiresAt != "" {
+			deadline, parseErr := time.Parse(time.RFC3339Nano, expiresAt)
+			if parseErr != nil {
+				return Decision{}, fmt.Errorf("invalid saved expiry: %w", parseErr)
+			}
+			previouslyExpired = !store.now().Before(deadline)
+		}
+		if previouslyExpired {
+			result = decision(snapshot, "cleaning", previous.Decision.Mode, "ttl-expired", expiresAt)
+			if previous.PR == snapshot.PR && (previous.Decision.Phase == "cleaning" || previous.Decision.Phase == "deleted" || previous.Decision.Phase == "cleanup-failed") && len(previous.Decision.ReasonCodes) > 0 && previous.Decision.ReasonCodes[0] == "ttl-expired" {
+				result = previous.Decision
+			}
+			_, err = store.RemoveXR(name)
+		} else {
+			result = Evaluate(snapshot, config)
+		}
+		if !previouslyExpired && result.Phase == "approved" {
 			if firstApprovedAt == "" {
 				firstApprovedAt = store.now().Format(time.RFC3339Nano)
 			}
@@ -253,7 +269,7 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 			expires := firstApproved.Add(time.Duration(snapshot.Request.TTLMinutes) * time.Minute)
 			expiresAt = expires.Format(time.RFC3339Nano)
 			if !store.now().Before(expires) {
-				result = decision(snapshot, "expired", "", "ttl-expired", expiresAt)
+				result = decision(snapshot, "cleaning", result.Mode, "ttl-expired", expiresAt)
 				_, err = store.RemoveXR(name)
 			} else {
 				if result.Mode == "vcluster" {
@@ -269,7 +285,7 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 					_, err = store.WriteXR(xr)
 				}
 			}
-		} else {
+		} else if !previouslyExpired {
 			_, err = store.RemoveXR(name) // Prevent serving an old commit while the new head awaits CI.
 		}
 	}

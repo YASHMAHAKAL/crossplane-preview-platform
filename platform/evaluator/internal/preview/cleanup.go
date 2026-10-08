@@ -104,16 +104,17 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 	return remaining, nil
 }
 
-// ObserveCleanup advances a closed or merged PR after a successful GitOps
-// publish. It retains the first cleanup timestamp across retries and reports
-// a timeout while continuing to retry eventual deletion.
+// ObserveCleanup advances a closed, merged, or TTL-expired preview after a
+// successful GitOps publish. It retains the first cleanup timestamp across
+// retries and reports a timeout while continuing to retry eventual deletion.
 func (store Store) ObserveCleanup(name string, remaining []string, observationErr error) (Decision, error) {
 	record, err := store.readStatus(name)
 	if err != nil {
 		return Decision{}, err
 	}
-	if record.PR.State != "closed" && record.PR.State != "merged" {
-		return Decision{}, errors.New("cleanup observation requires a closed PR")
+	expiredOpen := record.PR.State == "open" && len(record.Decision.ReasonCodes) > 0 && record.Decision.ReasonCodes[0] == "ttl-expired"
+	if record.PR.State != "closed" && record.PR.State != "merged" && !expiredOpen {
+		return Decision{}, errors.New("cleanup observation requires a closed, merged, or expired PR")
 	}
 	if record.Decision.Phase != "cleaning" && record.Decision.Phase != "cleanup-failed" && record.Decision.Phase != "deleted" {
 		return Decision{}, errors.New("cleanup observation requires a cleanup decision")
@@ -137,6 +138,8 @@ func (store Store) ObserveCleanup(name string, remaining []string, observationEr
 	reason := "pr-closed"
 	if record.PR.State == "merged" {
 		reason = "pr-merged"
+	} else if expiredOpen {
+		reason = "ttl-expired"
 	}
 	result := record.Decision
 	result.ReasonCodes = []string{reason}

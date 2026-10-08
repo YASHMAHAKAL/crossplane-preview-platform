@@ -53,6 +53,18 @@ func (store Store) Status(name string, client *http.Client) (Status, error) {
 	if status.Phase != "approved" {
 		return status, nil
 	}
+	if status.ExpiresAt != "" {
+		deadline, err := time.Parse(time.RFC3339Nano, status.ExpiresAt)
+		if err != nil {
+			return Status{}, fmt.Errorf("invalid saved preview expiry: %w", err)
+		}
+		if !store.now().Before(deadline) {
+			status.Phase = "expired"
+			status.ReasonCodes = []string{"ttl-expired"}
+			status.Evidence = []string{"preview deadline passed; watcher cleanup pending"}
+			return status, nil
+		}
+	}
 	status.Phase = "provisioning"
 	if store.Readiness == nil {
 		status.Phase = "degraded"

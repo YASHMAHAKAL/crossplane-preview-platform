@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type readinessFunc func(context.Context, string, string) (bool, error)
@@ -52,5 +53,14 @@ func TestStatusOnlySurfacesURLAfterHealth(t *testing.T) {
 	status, err = store.Status(name, healthy)
 	if err != nil || status.Phase != "degraded" || status.URL != "" || !strings.Contains(strings.Join(status.Evidence, " "), "cluster unavailable") {
 		t.Fatalf("readiness error must be visible without URL: %+v, %v", status, err)
+	}
+	deadline, err := time.Parse(time.RFC3339Nano, status.ExpiresAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.Now = func() time.Time { return deadline }
+	status, err = store.Status(name, healthy)
+	if err != nil || status.Phase != "expired" || status.URL != "" || len(status.ReasonCodes) != 1 || status.ReasonCodes[0] != "ttl-expired" {
+		t.Fatalf("expired preview must hide the URL even if its route is live: %+v, %v", status, err)
 	}
 }

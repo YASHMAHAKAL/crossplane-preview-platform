@@ -82,7 +82,7 @@ export function PreviewStatusPage() {
     if (!prNumber) {
       setStatus(undefined);
       setError('');
-      return;
+      return undefined;
     }
     const selectedNumber = prNumber;
     let active = true;
@@ -142,6 +142,20 @@ export function PreviewStatusPage() {
   const isComplete = status?.phase === 'deleted';
   const isReady = status?.phase === 'ready' && Boolean(status.url);
   const isPending = status?.phase === 'pending-evaluation' || status?.phase === 'waiting-for-ci';
+  let lifecycleMessage = 'The platform is reconciling this request.';
+  if (isComplete) lifecycleMessage = 'The preview and its route have been removed.';
+  else if (status?.phase === 'expired') lifecycleMessage = 'The preview deadline passed. Cleanup is pending.';
+  else if (status?.phase === 'cleaning') lifecycleMessage = 'The platform is removing the preview and checking its resources.';
+  else if (isReady) lifecycleMessage = 'The preview is ready to explore.';
+  else if (isPending) lifecycleMessage = 'The platform is waiting for a current decision or build.';
+  let modeLabel = 'Awaiting decision';
+  if (status?.mode === 'vcluster') modeLabel = 'vCluster';
+  else if (status?.mode === 'namespace') modeLabel = 'Namespace';
+  else if (isComplete) modeLabel = 'No active environment';
+  let urlLabel = 'Available when healthy';
+  if (isReady) urlLabel = status?.url ?? '';
+  else if (isComplete) urlLabel = 'Removed';
+  else if (status?.phase === 'expired' || status?.phase === 'cleaning') urlLabel = 'Unavailable during cleanup';
 
   return (
     <Box style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 24px 64px' }}>
@@ -190,7 +204,7 @@ export function PreviewStatusPage() {
                 <Typography variant="overline" color="textSecondary">INCIDENT TRACKER · PR #{prNumber}</Typography>
                 <Typography variant="h5" style={{ fontWeight: 700, marginTop: 4 }}>Preview lifecycle</Typography>
                 <Typography color="textSecondary" style={{ marginTop: 6 }}>
-                  {isComplete ? 'The preview and its route have been removed.' : isReady ? 'The preview is ready to explore.' : isPending ? 'The platform is waiting for a current decision or build.' : 'The platform is reconciling this request.'}
+                  {lifecycleMessage}
                 </Typography>
               </Box>
               <Box display="flex" alignItems="center" style={{ gap: 10 }}>
@@ -209,7 +223,7 @@ export function PreviewStatusPage() {
               <Paper style={panelStyle}>
                 <Typography variant="h6" style={{ fontWeight: 700 }}>Decision</Typography>
                 <Typography color="textSecondary" style={{ marginTop: 8 }}>Isolation mode</Typography>
-                <Typography variant="h5" style={{ marginTop: 2 }}>{status.mode === 'vcluster' ? 'vCluster' : status.mode === 'namespace' ? 'Namespace' : isComplete ? 'No active environment' : 'Awaiting decision'}</Typography>
+                <Typography variant="h5" style={{ marginTop: 2 }}>{modeLabel}</Typography>
                 <Box display="flex" flexWrap="wrap" style={{ gap: 8, marginTop: 18 }}>
                   {status.reasonCodes.map(reason => <Chip key={reason} label={reason} size="small" variant="outlined" />)}
                 </Box>
@@ -230,7 +244,7 @@ export function PreviewStatusPage() {
                   <Typography component="dt" color="textSecondary">Expiry</Typography>
                   <Typography component="dd" style={{ margin: 0 }}>{readableTime(status.expiresAt)}</Typography>
                   <Typography component="dt" color="textSecondary">Preview URL</Typography>
-                  <Typography component="dd" style={{ margin: 0, overflowWrap: 'anywhere' }}>{isReady ? status.url : isComplete ? 'Removed' : 'Available when healthy'}</Typography>
+                  <Typography component="dd" style={{ margin: 0, overflowWrap: 'anywhere' }}>{urlLabel}</Typography>
                 </Box>
               </Paper>
             </Box>

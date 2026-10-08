@@ -228,15 +228,40 @@ func TestPreviewExpiresFromFirstApproval(t *testing.T) {
 	}
 	current = start.Add(60 * time.Minute)
 	result, err := store.Reconcile(snapshot, config)
-	if err != nil || result.Phase != "expired" || result.ReasonCodes[0] != "ttl-expired" {
+	if err != nil || result.Phase != "cleaning" || result.ReasonCodes[0] != "ttl-expired" {
 		t.Fatalf("expiry: %+v %v", result, err)
 	}
 	if _, err := os.Stat(filepath.Join(store.Root, "previews", name)); !os.IsNotExist(err) {
 		t.Fatalf("expired XR remains: %v", err)
 	}
 	status, err := store.Status(name, nil)
-	if err != nil || status.Phase != "expired" || status.URL != "" || status.ExpiresAt == "" {
+	if err != nil || status.Phase != "cleaning" || status.URL != "" || status.ExpiresAt == "" {
 		t.Fatalf("status: %+v %v", status, err)
+	}
+	result, err = store.ObserveCleanup(name, []string{"namespaces/" + name}, nil)
+	if err != nil || result.Phase != "cleaning" || result.Evidence[0] != "namespaces/"+name {
+		t.Fatalf("expiry cleanup evidence: %+v %v", result, err)
+	}
+	before, err := os.ReadFile(filepath.Join(store.Root, "status", name+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = store.Reconcile(snapshot, config)
+	if err != nil || result.Phase != "cleaning" {
+		t.Fatalf("expiry replay: %+v %v", result, err)
+	}
+	after, err := os.ReadFile(filepath.Join(store.Root, "status", name+".json"))
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("expiry replay changed status: %v", err)
+	}
+	current = current.Add(CleanupSettleDelay)
+	result, err = store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "deleted" || result.ReasonCodes[0] != "ttl-expired" || result.ReasonCodes[1] != "cleanup-verified" {
+		t.Fatalf("verified expiry cleanup: %+v %v", result, err)
+	}
+	result, err = store.Reconcile(snapshot, config)
+	if err != nil || result.Phase != "deleted" {
+		t.Fatalf("terminal expiry replay: %+v %v", result, err)
 	}
 }
 
@@ -309,7 +334,7 @@ func TestReconcileUpdatedHeadAndLifetime(t *testing.T) {
 		t.Fatalf("replay changed status: %v", err)
 	}
 	current = start.Add(90 * time.Minute)
-	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "expired" {
+	if result, err := store.Reconcile(snapshot, config); err != nil || result.Phase != "cleaning" {
 		t.Fatalf("updated expiry: %+v %v", result, err)
 	}
 }

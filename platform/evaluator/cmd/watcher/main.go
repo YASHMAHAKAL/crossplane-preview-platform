@@ -22,6 +22,7 @@ func main() {
 	publish := flag.Bool("publish", true, "commit and push evaluator output after each pass")
 	kubeContext := flag.String("kube-context", "kind-preview-platform", "Kubernetes context used for read-only cleanup checks")
 	previewPort := flag.Int("preview-port", 8088, "local ingress port for cleanup route checks")
+	healthFile := flag.String("health-file", "", "optional local heartbeat JSON path outside GitOps")
 	flag.Parse()
 	if *configPath == "" || *gitopsRoot == "" || *interval < 10*time.Second || *kubeContext == "" || *previewPort < 1 || *previewPort > 65535 {
 		log.Fatal("require -config, -gitops, valid -kube-context and -preview-port, and interval of at least 10s")
@@ -41,9 +42,41 @@ func main() {
 	reader := preview.GitHubReader{Client: &http.Client{Timeout: 30 * time.Second}, Token: token}
 	store := preview.Store{Root: *gitopsRoot}
 	observer := preview.KubectlCleanupObserver{Context: *kubeContext, PreviewPort: *previewPort}
+	heartbeat := preview.WatcherHeartbeat{}
+	if *healthFile != "" {
+		previous, err := preview.ReadWatcherHeartbeat(*healthFile)
+		if err == nil {
+			heartbeat = previous
+		} else if !os.IsNotExist(err) {
+			log.Fatalf("read watcher heartbeat: %v", err)
+		}
+	}
 	for {
+		if *healthFile != "" {
+			heartbeat.LastAttemptAt = time.Now().UTC().Format(time.RFC3339Nano)
+			if err := preview.WriteWatcherHeartbeat(*healthFile, heartbeat); err != nil {
+				log.Fatalf("write watcher heartbeat: %v", err)
+			}
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		err := reconcile(ctx, reader, store, config, *publish, observer)
+		if *healthFile != "" {
+			heartbeat.LastCompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
+			if err == nil {
+				heartbeat.LastSuccessAt = heartbeat.LastCompletedAt
+				heartbeat.LastError = ""
+				heartbeat.ConsecutiveFailures = 0
+			} else {
+				heartbeat.LastError = err.Error()
+				if len(heartbeat.LastError) > 512 {
+					heartbeat.LastError = heartbeat.LastError[:512]
+				}
+				heartbeat.ConsecutiveFailures++
+			}
+			if writeErr := preview.WriteWatcherHeartbeat(*healthFile, heartbeat); writeErr != nil {
+				log.Fatalf("write watcher heartbeat: %v", writeErr)
+			}
+		}
 		if err != nil {
 			log.Printf("reconcile: %v", err)
 		}
@@ -89,16 +122,14 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 			continue
 		}
 		log.Printf("PR #%d head=%s phase=%s mode=%s reason=%v", pr.Number, snapshot.PR.HeadSHA, result.Phase, result.Mode, result.ReasonCodes)
-		if snapshot.PR.State == "closed" || snapshot.PR.State == "merged" {
+		if snapshot.PR.State == "closed" || snapshot.PR.State == "merged" || (len(result.ReasonCodes) > 0 && result.ReasonCodes[0] == "ttl-expired") {
 			cleanupNames = append(cleanupNames, name)
 		}
 	}
-	if len(failures) > 0 {
-		return fmt.Errorf("%d reconciliation error(s); first: %w", len(failures), failures[0])
-	}
 	if publish {
 		if err := store.Publish(ctx, "Reconcile PR previews"); err != nil {
-			return fmt.Errorf("publish GitOps removal before cleanup check: %w", err)
+			failures = append(failures, fmt.Errorf("publish GitOps removal before cleanup check: %w", err))
+			return fmt.Errorf("%d reconciliation error(s); first: %w", len(failures), failures[0])
 		}
 		for _, name := range cleanupNames {
 			remaining, observationErr := observer.Remaining(ctx, name)

@@ -4,6 +4,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Link,
   Paper,
   TextField,
   Typography,
@@ -153,8 +154,7 @@ export function PreviewStatusPage() {
   else if (status?.mode === 'namespace') modeLabel = 'Namespace';
   else if (isComplete) modeLabel = 'No active environment';
   let urlLabel = 'Available when healthy';
-  if (isReady) urlLabel = status?.url ?? '';
-  else if (isComplete) urlLabel = 'Removed';
+  if (isComplete) urlLabel = 'Removed';
   else if (status?.phase === 'expired' || status?.phase === 'cleaning') urlLabel = 'Unavailable during cleanup';
 
   return (
@@ -244,7 +244,13 @@ export function PreviewStatusPage() {
                   <Typography component="dt" color="textSecondary">Expiry</Typography>
                   <Typography component="dd" style={{ margin: 0 }}>{readableTime(status.expiresAt)}</Typography>
                   <Typography component="dt" color="textSecondary">Preview URL</Typography>
-                  <Typography component="dd" style={{ margin: 0, overflowWrap: 'anywhere' }}>{urlLabel}</Typography>
+                  <Typography component="dd" style={{ margin: 0, overflowWrap: 'anywhere' }}>
+                    {isReady && status.url ? (
+                      <Link href={status.url} target="_blank" rel="noopener noreferrer" underline="always">
+                        {status.url}
+                      </Link>
+                    ) : urlLabel}
+                  </Typography>
                 </Box>
               </Paper>
             </Box>

@@ -60,7 +60,23 @@ type CI struct {
 
 type ChangedFile struct {
 	Path    string `json:"path"`
+	Status  string `json:"status,omitempty"`
 	Content string `json:"content,omitempty"`
+}
+
+type ResourceAmount struct {
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+}
+
+type DeploymentResources struct {
+	Requests ResourceAmount `json:"requests"`
+	Limits   ResourceAmount `json:"limits"`
+}
+
+type DeploymentSpec struct {
+	Replicas  int                 `json:"replicas"`
+	Resources DeploymentResources `json:"resources"`
 }
 
 type Snapshot struct {
@@ -72,13 +88,14 @@ type Snapshot struct {
 }
 
 type Decision struct {
-	PolicyVersion string   `json:"policyVersion"`
-	Phase         string   `json:"phase"`
-	Mode          string   `json:"mode,omitempty"`
-	ReasonCodes   []string `json:"reasonCodes"`
-	Evidence      []string `json:"evidence"`
-	HeadSHA       string   `json:"headSHA"`
-	Capabilities  []string `json:"capabilities,omitempty"`
-	ImageDigest   string   `json:"imageDigest,omitempty"`
-	Request       *Request `json:"request,omitempty"`
+	PolicyVersion string          `json:"policyVersion"`
+	Phase         string          `json:"phase"`
+	Mode          string          `json:"mode,omitempty"`
+	ReasonCodes   []string        `json:"reasonCodes"`
+	Evidence      []string        `json:"evidence"`
+	HeadSHA       string          `json:"headSHA"`
+	Capabilities  []string        `json:"capabilities,omitempty"`
+	ImageDigest   string          `json:"imageDigest,omitempty"`
+	Request       *Request        `json:"request,omitempty"`
+	Deployment    *DeploymentSpec `json:"deployment,omitempty"`
 }

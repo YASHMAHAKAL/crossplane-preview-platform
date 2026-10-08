@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "2"
+const PolicyVersion = "3"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -51,12 +51,24 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		return decision(snapshot, "rejected", "", "invalid-request", "size or TTL outside published bounds")
 	}
 	needsVirtualCluster := false
+	deploymentChanged := false
+	var deployment DeploymentSpec
 	evidence := []string{}
 	appChanges := []string{}
 	for _, file := range snapshot.Files {
 		if file.Path == "" || strings.Contains(file.Path, "\\") || strings.HasPrefix(file.Path, "/") ||
 			path.Clean(file.Path) != file.Path || strings.HasPrefix(file.Path, "../") {
 			return decision(snapshot, "rejected", "", "invalid-file-list")
+		}
+		if file.Path == DeploymentConfigPath {
+			parsed, err := ParseDeploymentConfig(file.Content)
+			if err != nil || file.Status == "removed" {
+				return decision(snapshot, "rejected", "", "invalid-deployment-config", file.Path)
+			}
+			deployment = parsed
+			deploymentChanged = true
+			evidence = append(evidence, fmt.Sprintf("%s:replicas=%d", file.Path, parsed.Replicas))
+			continue
 		}
 		if strings.HasPrefix(file.Path, "deploy/cluster/") {
 			if !strings.HasSuffix(file.Path, ".json") || file.Content == "" {
@@ -106,7 +118,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		}
 		return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
 	}
-	if !needsVirtualCluster && len(appChanges) == 0 {
+	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 {
 		return decision(snapshot, "skipped", "", "no-previewable-change")
 	}
 	if snapshot.ActivePreviews >= config.MaxActivePreviews {
@@ -127,6 +139,8 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	if needsVirtualCluster {
 		mode, reason = "vcluster", "cluster-api-required"
 		capabilities = append(capabilities, "incident-policy")
+	} else if deploymentChanged {
+		mode, reason = "vcluster", "deployment-stack-change"
 	} else if len(appChanges) > 0 {
 		evidence = append(evidence, appChanges[0])
 	}
@@ -134,5 +148,8 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	result.Capabilities = capabilities
 	result.ImageDigest = snapshot.CI.ImageDigest
 	result.Request = &snapshot.Request
+	if deploymentChanged {
+		result.Deployment = &deployment
+	}
 	return result
 }

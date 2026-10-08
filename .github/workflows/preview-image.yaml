@@ -11,6 +11,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: platform/evaluator/go.mod
+          cache: false
+      - name: Validate preview deployment policy and config
+        run: go test ./...
+        working-directory: platform/evaluator
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

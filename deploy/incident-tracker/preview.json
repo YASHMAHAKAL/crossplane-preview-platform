@@ -1,0 +1,11 @@
+{
+  "apiVersion": "preview.platform.example.org/v1alpha1",
+  "kind": "IncidentTrackerDeployment",
+  "spec": {
+    "replicas": 1,
+    "resources": {
+      "requests": {"cpu": "100m", "memory": "128Mi"},
+      "limits": {"cpu": "500m", "memory": "512Mi"}
+    }
+  }
+}

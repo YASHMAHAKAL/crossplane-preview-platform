@@ -8,6 +8,19 @@ import (
 	"strings"
 )
 
+type ResourceAmount struct {
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+}
+
+type WorkloadDeployment struct {
+	Replicas  int `json:"replicas"`
+	Resources struct {
+		Requests ResourceAmount `json:"requests"`
+		Limits   ResourceAmount `json:"limits"`
+	} `json:"resources"`
+}
+
 type PreviewXR struct {
 	Metadata struct {
 		Name string `json:"name"`
@@ -37,7 +50,8 @@ type PreviewXR struct {
 			Mode        string   `json:"mode"`
 			ReasonCodes []string `json:"reasonCodes"`
 		} `json:"decision"`
-		Capabilities []string `json:"capabilities"`
+		Capabilities []string            `json:"capabilities"`
+		Deployment   *WorkloadDeployment `json:"deployment"`
 	} `json:"spec"`
 }
 
@@ -54,6 +68,15 @@ var (
 
 func obj(parts map[string]any) map[string]any { return parts }
 
+func oneOf(value string, options ...string) bool {
+	for _, option := range options {
+		if value == option {
+			return true
+		}
+	}
+	return false
+}
+
 func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 	name := xr.Metadata.Name
 	if !nameRE.MatchString(name) || !shaRE.MatchString(xr.Spec.PR.HeadSHA) || xr.Spec.PR.Number < 1 ||
@@ -68,6 +91,16 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 	}
 	if mode == "namespace" && len(xr.Spec.Capabilities) != 0 {
 		return nil, errors.New("namespace preview cannot carry cluster capabilities")
+	}
+	if xr.Spec.Deployment != nil {
+		config := xr.Spec.Deployment
+		if mode != "vcluster" || config.Replicas < 1 || config.Replicas > 2 ||
+			!oneOf(config.Resources.Requests.CPU, "100m", "250m") ||
+			!oneOf(config.Resources.Requests.Memory, "128Mi", "256Mi") ||
+			!oneOf(config.Resources.Limits.CPU, "500m", "1000m") ||
+			!oneOf(config.Resources.Limits.Memory, "512Mi", "1024Mi") {
+			return nil, errors.New("unsupported deployment settings for preview")
+		}
 	}
 	for _, capability := range xr.Spec.Capabilities {
 		if capability != "incident-policy" || mode != "vcluster" {
@@ -133,9 +166,16 @@ func appObjects(xr PreviewXR, hostNamespace bool, labels map[string]any) []map[s
 	if !hostNamespace {
 		ns = "default"
 	}
+	replicas := 1
 	cpu, memory := "100m", "128Mi"
+	limitCPU, limitMemory := "500m", "512Mi"
 	if xr.Spec.Request.Size == "medium" {
 		cpu, memory = "250m", "256Mi"
+	}
+	if xr.Spec.Deployment != nil {
+		replicas = xr.Spec.Deployment.Replicas
+		cpu, memory = xr.Spec.Deployment.Resources.Requests.CPU, xr.Spec.Deployment.Resources.Requests.Memory
+		limitCPU, limitMemory = xr.Spec.Deployment.Resources.Limits.CPU, xr.Spec.Deployment.Resources.Limits.Memory
 	}
 	metadata := func(name string) map[string]any {
 		return obj(map[string]any{"name": name, "namespace": ns, "labels": labels})
@@ -144,7 +184,7 @@ func appObjects(xr PreviewXR, hostNamespace bool, labels map[string]any) []map[s
 	deployment := obj(map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment", "metadata": metadata("incident-tracker"),
 		"spec": obj(map[string]any{
-			"replicas": 1, "selector": obj(map[string]any{"matchLabels": selector}),
+			"replicas": replicas, "selector": obj(map[string]any{"matchLabels": selector}),
 			"template": obj(map[string]any{
 				"metadata": obj(map[string]any{"labels": selector}),
 				"spec": obj(map[string]any{
@@ -158,7 +198,7 @@ func appObjects(xr PreviewXR, hostNamespace bool, labels map[string]any) []map[s
 						},
 						"volumeMounts":   []any{obj(map[string]any{"name": "data", "mountPath": "/data"})},
 						"readinessProbe": obj(map[string]any{"httpGet": obj(map[string]any{"path": "/healthz", "port": 8080}), "initialDelaySeconds": 2}),
-						"resources":      obj(map[string]any{"requests": obj(map[string]any{"cpu": cpu, "memory": memory}), "limits": obj(map[string]any{"cpu": "500m", "memory": "512Mi"})}),
+						"resources":      obj(map[string]any{"requests": obj(map[string]any{"cpu": cpu, "memory": memory}), "limits": obj(map[string]any{"cpu": limitCPU, "memory": limitMemory})}),
 					})},
 					"volumes": []any{obj(map[string]any{"name": "data", "emptyDir": obj(map[string]any{})})},
 				}),

@@ -33,6 +33,19 @@ func MakeXR(snapshot Snapshot, result Decision, config Config) (map[string]any, 
 	if err != nil {
 		return nil, err
 	}
+	spec := map[string]any{
+		"crossplane":   map[string]any{"compositionRef": map[string]string{"name": "preview-" + result.Mode}},
+		"serviceRef":   config.Service,
+		"pr":           map[string]any{"number": snapshot.PR.Number, "headSHA": snapshot.PR.HeadSHA},
+		"image":        map[string]string{"digest": result.ImageDigest},
+		"request":      result.Request,
+		"preview":      map[string]string{"host": name + ".localhost"},
+		"decision":     map[string]any{"mode": result.Mode, "reasonCodes": result.ReasonCodes},
+		"capabilities": result.Capabilities,
+	}
+	if result.Deployment != nil {
+		spec["deployment"] = result.Deployment
+	}
 	return map[string]any{
 		"apiVersion": "preview.platform.example.org/v1alpha1", "kind": "PreviewEnvironment",
 		"metadata": map[string]any{
@@ -43,16 +56,7 @@ func MakeXR(snapshot Snapshot, result Decision, config Config) (map[string]any, 
 				"app.kubernetes.io/managed-by":         "preview-evaluator",
 			},
 		},
-		"spec": map[string]any{
-			"crossplane":   map[string]any{"compositionRef": map[string]string{"name": "preview-" + result.Mode}},
-			"serviceRef":   config.Service,
-			"pr":           map[string]any{"number": snapshot.PR.Number, "headSHA": snapshot.PR.HeadSHA},
-			"image":        map[string]string{"digest": result.ImageDigest},
-			"request":      result.Request,
-			"preview":      map[string]string{"host": name + ".localhost"},
-			"decision":     map[string]any{"mode": result.Mode, "reasonCodes": result.ReasonCodes},
-			"capabilities": result.Capabilities,
-		},
+		"spec": spec,
 	}, nil
 }
 

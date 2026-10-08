@@ -75,6 +75,39 @@ func TestRenderVCluster(t *testing.T) {
 	}
 }
 
+func TestRenderVClusterDeploymentSettings(t *testing.T) {
+	xr := sampleXR("vcluster")
+	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 2}
+	xr.Spec.Deployment.Resources.Requests = ResourceAmount{CPU: "250m", Memory: "256Mi"}
+	xr.Spec.Deployment.Resources.Limits = ResourceAmount{CPU: "1000m", Memory: "1024Mi"}
+	resources, err := Render(xr, "vcluster")
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := resources[1].Object["spec"].(map[string]any)["forProvider"].(map[string]any)["values"].(map[string]any)
+	manifests := values["experimental"].(map[string]any)["deploy"].(map[string]any)["vcluster"].(map[string]any)["manifests"].(string)
+	var deployment map[string]any
+	for _, part := range strings.Split(manifests, "\n---\n") {
+		var object map[string]any
+		if err := json.Unmarshal([]byte(part), &object); err != nil {
+			t.Fatal(err)
+		}
+		if object["kind"] == "Deployment" {
+			deployment = object
+		}
+	}
+	if deployment == nil {
+		t.Fatal("virtual cluster manifests have no Deployment")
+	}
+	spec := deployment["spec"].(map[string]any)
+	container := spec["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
+	settings := container["resources"].(map[string]any)
+	if spec["replicas"] != float64(2) || settings["requests"].(map[string]any)["cpu"] != "250m" ||
+		settings["limits"].(map[string]any)["memory"] != "1024Mi" {
+		t.Fatalf("virtual cluster did not receive deployment config: %#v", deployment)
+	}
+}
+
 func TestRenderRejectsMismatch(t *testing.T) {
 	xr := sampleXR("namespace")
 	if _, err := Render(xr, "vcluster"); err == nil {
@@ -83,5 +116,15 @@ func TestRenderRejectsMismatch(t *testing.T) {
 	xr.Spec.Image.Digest = "ghcr.io/demo/incident-tracker:latest"
 	if _, err := Render(xr, "namespace"); err == nil {
 		t.Fatal("expected immutable image check")
+	}
+	xr = sampleXR("namespace")
+	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 2}
+	if _, err := Render(xr, "namespace"); err == nil {
+		t.Fatal("expected namespace deployment override rejection")
+	}
+	xr = sampleXR("vcluster")
+	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 3}
+	if _, err := Render(xr, "vcluster"); err == nil {
+		t.Fatal("expected out-of-bounds deployment rejection")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -36,6 +37,7 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	digest := "ghcr.io/demo/incident-tracker@sha256:" + strings.Repeat("b", 64)
 	artifact := zipRecord(t, map[string]string{"headSHA": sha, "imageDigest": digest})
+	deployment := checkedInDeploymentConfig(t)
 	calls := []string{}
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls = append(calls, req.URL.Path)
@@ -44,7 +46,12 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 		case "/repos/demo/incident-tracker/pulls/42":
 			body = []byte(`{"number":42,"state":"open","user":{"login":"demo"},"head":{"sha":"` + sha + `","repo":{"full_name":"demo/incident-tracker"}}}`)
 		case "/repos/demo/incident-tracker/pulls/42/files":
-			body = []byte(`[{"filename":"app/incident-tracker/src/server.js"}]`)
+			body = []byte(`[{"filename":"app/incident-tracker/src/server.js","status":"modified"},{"filename":"deploy/incident-tracker/preview.json","status":"modified"}]`)
+		case "/repos/demo/incident-tracker/contents/deploy/incident-tracker/preview.json":
+			if req.URL.Query().Get("ref") != sha {
+				t.Fatalf("deployment content was not fetched from PR head: %s", req.URL)
+			}
+			body = []byte(`{"encoding":"base64","content":"` + base64.StdEncoding.EncodeToString([]byte(deployment)) + `"}`)
 		case "/repos/demo/incident-tracker/actions/runs":
 			body = []byte(`{"workflow_runs":[{"id":19,"name":"Preview image","event":"push","head_sha":"` + sha + `","status":"completed","conclusion":"success"}]}`)
 		case "/repos/demo/incident-tracker/actions/runs/19/artifacts":
@@ -64,7 +71,10 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 	if got.Request.Size != "small" || got.Request.TTLMinutes != 120 || got.CI.ImageDigest != digest || got.CI.HeadSHA != sha {
 		t.Fatalf("unexpected snapshot: %+v", got)
 	}
-	if len(calls) != 5 {
-		t.Fatalf("expected five GitHub reads with no request-file lookup, got %v", calls)
+	if len(got.Files) != 2 || got.Files[1].Content != deployment || got.Files[1].Status != "modified" {
+		t.Fatalf("changed deployment content missing: %+v", got.Files)
+	}
+	if len(calls) != 6 {
+		t.Fatalf("expected six GitHub reads with no request-file lookup, got %v", calls)
 	}
 }

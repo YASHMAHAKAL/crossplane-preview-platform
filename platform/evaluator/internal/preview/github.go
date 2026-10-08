@@ -152,14 +152,16 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 	for page := 1; page <= 10; page++ {
 		var changed []struct {
 			Filename string `json:"filename"`
+			Status   string `json:"status"`
 		}
 		path := fmt.Sprintf("%s/pulls/%d/files?per_page=100&page=%d", repo, number, page)
 		if err := reader.getJSON(ctx, path, &changed); err != nil {
 			return snapshot, err
 		}
 		for _, file := range changed {
-			entry := ChangedFile{Path: file.Filename}
-			if strings.HasPrefix(entry.Path, "deploy/cluster/") && strings.HasSuffix(entry.Path, ".json") {
+			entry := ChangedFile{Path: file.Filename, Status: file.Status}
+			if file.Status != "removed" && (entry.Path == DeploymentConfigPath ||
+				(strings.HasPrefix(entry.Path, "deploy/cluster/") && strings.HasSuffix(entry.Path, ".json"))) {
 				if strings.Contains(entry.Path, "..") || strings.Contains(entry.Path, "\\") {
 					return snapshot, errors.New("invalid cluster manifest path")
 				}

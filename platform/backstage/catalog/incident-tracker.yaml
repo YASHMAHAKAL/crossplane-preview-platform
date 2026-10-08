@@ -10,6 +10,8 @@ metadata:
   links:
     - title: PR previews
       url: http://localhost:3000/previews
+    - title: Deployment preview contract
+      url: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/docs/deployment-preview.md
 spec:
   type: service
   lifecycle: experimental

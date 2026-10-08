@@ -58,6 +58,7 @@ Define one modern cluster-scoped XRD (for example `preview.platform.example.org/
 | `pr.number`, `pr.headSHA` | Traceability and stale-build protection. |
 | `image.digest` | Immutable artifact that passed required checks; reject mutable `latest`. |
 | `request.size`, `request.ttl` | Bounded defaults from trusted local operator config, never PR-controlled. |
+| `deployment.replicas`, `deployment.resources` | Optional, bounded settings normalized from the exact-head `deploy/incident-tracker/preview.json` diff. Validated again by the Function; no raw Kubernetes YAML reaches trusted GitOps. |
 | `preview.host` | Normalized, collision-free local hostname assigned by the evaluator. |
 | `decision.mode`, `decision.reasonCodes` | Selected `namespace` or `vcluster` and machine-readable explanation. |
 | `compositionRef` or supported v2 selector | Explicitly chooses the matching Composition; confirm exact supported field in the pinned release. |
@@ -77,7 +78,7 @@ Implement the evaluator as a Go service and CLI sharing one typed policy package
 3. Choose namespace for allowed namespaced app resources and code-only changes.
 4. Reject requirements the platform cannot safely or functionally render. Do not silently fall back to namespace when vCluster prerequisites fail.
 
-Changed-file paths alone are weak evidence: inspect the supported deployment/contract content or use a typed declaration whose consistency is checked. Do not generalize to exactly two hard-coded PR examples. Define extensible rule categories and table-driven cases; the two demonstration PRs exercise categories, not special-case branches.
+Changed-file paths alone are weak evidence: inspect the supported deployment/contract content or use a typed declaration whose consistency is checked. The current supported deployment input is the strict, bounded `deploy/incident-tracker/preview.json` file. Its presence in a changed-file list selects vCluster only after exact-head content validation. Other deployment and Crossplane paths fail closed. Extend rule categories with tested inputs, not special-case PR numbers.
 
 The evaluator writes idempotently to `previews/<service>-pr-<number>/` (or an equivalent unique path). Include a small metadata record with the decision and source SHA if useful, but keep the Argo CD path free of untrusted raw files. Guard concurrent updates and retries with head-SHA checks. On close/merge, remove the path and retain an audit/status record; a repeated close should be harmless.
 

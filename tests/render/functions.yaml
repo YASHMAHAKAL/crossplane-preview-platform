@@ -5,4 +5,4 @@ metadata:
   annotations:
     render.crossplane.io/runtime: Development
 spec:
-  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.2
+  package: ghcr.io/yashmahakal/function-preview-resources:v0.1.3

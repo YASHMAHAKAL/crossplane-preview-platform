@@ -58,6 +58,7 @@ func TestPolicyTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	crd := string(crdBytes)
+	deployment := strings.Replace(checkedInDeploymentConfig(t), `"replicas": 1`, `"replicas": 2`, 1)
 	cases := []struct {
 		name                string
 		change              func(*Snapshot)
@@ -71,6 +72,15 @@ func TestPolicyTable(t *testing.T) {
 		{"cluster API", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
 		}, "approved", "vcluster", "cluster-api-required"},
+		{"deployment stack", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment})
+		}, "approved", "vcluster", "deployment-stack-change"},
+		{"invalid deployment config", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas": 2`, `"replicas": 4`, 1)})
+		}, "rejected", "", "invalid-deployment-config"},
+		{"deleted deployment config", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Status: "removed"})
+		}, "rejected", "", "invalid-deployment-config"},
 		{"untrusted fork", func(s *Snapshot) { s.PR.Fork = true }, "rejected", "", "untrusted-pr"},
 		{"stale CI", func(s *Snapshot) { s.CI.HeadSHA = strings.Repeat("c", 40) }, "waiting-for-ci", "", "ci-not-current"},
 		{"failed CI", func(s *Snapshot) { s.CI.State = "failure" }, "rejected", "", "ci-failed"},

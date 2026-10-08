@@ -28,9 +28,16 @@
     "decision": {
       "mode": "namespace",
       "reasonCodes": [
-        "namespaced-app-change"
+        "namespaced-deployment-change"
       ]
     },
-    "capabilities": []
+    "capabilities": [],
+    "deployment": {
+      "replicas": 2,
+      "resources": {
+        "requests": {"cpu": "250m", "memory": "256Mi"},
+        "limits": {"cpu": "1000m", "memory": "1024Mi"}
+      }
+    }
   }
 }

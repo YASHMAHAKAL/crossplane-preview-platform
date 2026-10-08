@@ -94,7 +94,7 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 	}
 	if xr.Spec.Deployment != nil {
 		config := xr.Spec.Deployment
-		if mode != "vcluster" || config.Replicas < 1 || config.Replicas > 2 ||
+		if config.Replicas < 1 || config.Replicas > 2 ||
 			!oneOf(config.Resources.Requests.CPU, "100m", "250m") ||
 			!oneOf(config.Resources.Requests.Memory, "128Mi", "256Mi") ||
 			!oneOf(config.Resources.Limits.CPU, "500m", "1000m") ||
@@ -121,6 +121,14 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 		cpu, memory := "500m", "512Mi"
 		if xr.Spec.Request.Size == "medium" {
 			cpu, memory = "1000m", "1Gi"
+		} else if xr.Spec.Deployment != nil && xr.Spec.Deployment.Replicas == 2 {
+			// Keep room for the default Deployment rolling-update surge pod.
+			if xr.Spec.Deployment.Resources.Requests.CPU == "250m" {
+				cpu = "750m"
+			}
+			if xr.Spec.Deployment.Resources.Requests.Memory == "256Mi" {
+				memory = "768Mi"
+			}
 		}
 		quota := NamedResource{"quota", obj(map[string]any{
 			"apiVersion": "v1", "kind": "ResourceQuota",

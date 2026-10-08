@@ -72,9 +72,18 @@ func TestPolicyTable(t *testing.T) {
 		{"cluster API", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
 		}, "approved", "vcluster", "cluster-api-required"},
-		{"deployment stack", func(s *Snapshot) {
+		{"bounded deployment settings", func(s *Snapshot) {
+			s.Files = []ChangedFile{{Path: DeploymentConfigPath, Content: deployment}}
+		}, "approved", "namespace", "namespaced-deployment-change"},
+		{"app and deployment settings", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment})
-		}, "approved", "vcluster", "deployment-stack-change"},
+		}, "approved", "namespace", "namespaced-deployment-change"},
+		{"cluster API and deployment settings", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment}, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
+		}, "approved", "vcluster", "cluster-api-required"},
+		{"external service type", func(s *Snapshot) {
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas":2`, `"replicas":2,"serviceType":"NodePort"`, 1)})
+		}, "rejected", "", "invalid-deployment-config"},
 		{"invalid deployment config", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas":2`, `"replicas":4`, 1)})
 		}, "rejected", "", "invalid-deployment-config"},

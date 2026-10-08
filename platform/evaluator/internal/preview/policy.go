@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "3"
+const PolicyVersion = "4"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -140,7 +140,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		mode, reason = "vcluster", "cluster-api-required"
 		capabilities = append(capabilities, "incident-policy")
 	} else if deploymentChanged {
-		mode, reason = "vcluster", "deployment-stack-change"
+		mode, reason = "namespace", "namespaced-deployment-change"
 	} else if len(appChanges) > 0 {
 		evidence = append(evidence, appChanges[0])
 	}

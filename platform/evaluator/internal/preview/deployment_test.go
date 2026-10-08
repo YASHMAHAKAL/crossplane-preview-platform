@@ -42,12 +42,12 @@ func TestDeploymentConfigRejectsUnsupportedValues(t *testing.T) {
 	}
 }
 
-func TestDeploymentChangeProducesBoundedVClusterXR(t *testing.T) {
+func TestDeploymentChangeProducesBoundedNamespaceXR(t *testing.T) {
 	snapshot, config := fixture()
 	changed := strings.Replace(deploymentFixture, `"replicas":1`, `"replicas":2`, 1)
 	snapshot.Files = []ChangedFile{{Path: DeploymentConfigPath, Status: "modified", Content: changed}}
 	decision := Evaluate(snapshot, config)
-	if decision.Phase != "approved" || decision.Mode != "vcluster" || decision.ReasonCodes[0] != "deployment-stack-change" ||
+	if decision.Phase != "approved" || decision.Mode != "namespace" || decision.ReasonCodes[0] != "namespaced-deployment-change" ||
 		decision.Deployment == nil || decision.Deployment.Replicas != 2 {
 		t.Fatalf("deployment decision: %+v", decision)
 	}

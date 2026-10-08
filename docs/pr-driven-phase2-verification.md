@@ -2,6 +2,8 @@
 
 On 2026-10-08, [PR #17](https://github.com/YASHMAHAKAL/crossplane-preview-platform/pull/17) tested a real deployment configuration edit against the local `kind-preview-platform` cluster. Its only changed source file was `deploy/incident-tracker/preview.json`; the PR did not contain an environment request or selected preview mode. The edit changed replicas from `1` to `2`, requests from `100m`/`128Mi` to `250m`/`256Mi`, and limits from `500m`/`512Mi` to `1000m`/`1024Mi`.
 
+This is historical evidence for policy version 3, which chose vCluster for every validated deployment config change. Policy version 4 classifies bounded replicas and resources as namespaced changes. Do not use this run as evidence of the current mode decision.
+
 | Check | Observed result |
 | --- | --- |
 | PR head `6828d6411eb3afae2c7952d21e5f170b524f99a4` | The `Preview image` build and GitGuardian checks passed. The Go watcher fetched the config at this exact head and selected `vcluster` with `deployment-stack-change`, citing `deploy/incident-tracker/preview.json:replicas=2`. |

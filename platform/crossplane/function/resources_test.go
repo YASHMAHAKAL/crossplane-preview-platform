@@ -75,11 +75,36 @@ func TestRenderVCluster(t *testing.T) {
 	}
 }
 
-func TestRenderVClusterDeploymentSettings(t *testing.T) {
-	xr := sampleXR("vcluster")
+func withDeploymentSettings(xr PreviewXR) PreviewXR {
 	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 2}
 	xr.Spec.Deployment.Resources.Requests = ResourceAmount{CPU: "250m", Memory: "256Mi"}
 	xr.Spec.Deployment.Resources.Limits = ResourceAmount{CPU: "1000m", Memory: "1024Mi"}
+	return xr
+}
+
+func TestRenderNamespaceDeploymentSettings(t *testing.T) {
+	xr := withDeploymentSettings(sampleXR("namespace"))
+	resources, err := Render(xr, "namespace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quota := resources[1].Object["spec"].(map[string]any)["hard"].(map[string]any)
+	if quota["requests.cpu"] != "750m" || quota["requests.memory"] != "768Mi" {
+		t.Fatalf("namespace quota has no surge capacity: %#v", quota)
+	}
+	deployment := resources[2].Object
+	spec := deployment["spec"].(map[string]any)
+	container := spec["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
+	settings := container["resources"].(map[string]any)
+	if spec["replicas"] != 2 || settings["requests"].(map[string]any)["cpu"] != "250m" ||
+		settings["limits"].(map[string]any)["memory"] != "1024Mi" {
+		t.Fatalf("namespace deployment did not receive settings: %#v", deployment)
+	}
+}
+
+func TestRenderVClusterDeploymentSettings(t *testing.T) {
+	xr := withDeploymentSettings(sampleXR("vcluster"))
+	xr.Spec.Capabilities = []string{"incident-policy"}
 	resources, err := Render(xr, "vcluster")
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +145,7 @@ func TestRenderRejectsMismatch(t *testing.T) {
 	xr = sampleXR("namespace")
 	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 2}
 	if _, err := Render(xr, "namespace"); err == nil {
-		t.Fatal("expected namespace deployment override rejection")
+		t.Fatal("expected invalid namespace deployment settings rejection")
 	}
 	xr = sampleXR("vcluster")
 	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 3}

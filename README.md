@@ -2,6 +2,8 @@
 
 A local portfolio project that turns a trusted GitHub PR into an explained preview environment. The Go evaluator chooses a Kubernetes namespace for app-only changes, a vCluster for a fixed cluster API capability, or a rejection with a reason. Crossplane v2 renders the resources; Argo CD consumes only evaluator-authored GitOps state. Pulseboard, the Incident Tracker app, is the preview workload.
 
+For a repeatable local setup, start with the [setup and verification runbook](docs/local-setup.md): `deploy/local/preflight.sh`, `deploy/local/bootstrap.sh`, `deploy/local/start-portal.sh`, then `deploy/local/verify-platform.sh --portal`. The [short demo guide](docs/demo.md) covers both preview modes and cleanup. The GitHub PR flow needs access to the separate private GitOps repository; offline tests remain available without it.
+
 ```text
 Backstage UI or Codex via Backstage MCP
     -> Scaffolder opens/updates a GitHub PR
@@ -9,7 +11,7 @@ Backstage UI or Codex via Backstage MCP
     -> Go watcher validates PR, request, allowed capability, CI, capacity
     -> trusted GitOps repo -> Argo CD ApplicationSet -> Crossplane v2 XR
     -> namespace or vCluster -> Pulseboard URL after health check
-    -> merged/closed PR removes XR path -> Argo CD prunes
+    -> merged/closed PR or expired TTL removes XR path -> Argo CD prunes
 ```
 
 ## Current implementation
@@ -60,7 +62,7 @@ Remove the temporary app with `kubectl --context kind-preview-platform delete na
 
 ## Local cluster setup
 
-This path needs Docker, kind v0.31.0, kubectl, Helm, the Crossplane CLI, Go, Node 22, a public GitHub repository, and a separate trusted GitOps repository. Allow enough RAM for Crossplane, Argo CD, the ingress controller, and a vCluster. The commands below are a runbook for a fresh machine; skip `kind create cluster` when `kind-preview-platform` already exists.
+This path needs Docker, kind, kubectl, Helm, the Crossplane CLI, Go, Node 22 or 24, a public GitHub repository, and a separate trusted GitOps repository. Allow enough RAM for Crossplane, Argo CD, the ingress controller, and a vCluster. Use the [checked setup path](docs/local-setup.md) first; the commands below expose the underlying manual steps. The last tested kind CLI was v0.33.0.
 
 This workspace has the dedicated `kind-preview-platform` context and a Ready node. Crossplane, Argo CD, provider-helm, the Function, and NGINX are installed. The two earlier kind clusters were deleted at the operator's request; the Minikube profile was stopped and retained. Select `kind-preview-platform` explicitly when installing or checking controllers.
 

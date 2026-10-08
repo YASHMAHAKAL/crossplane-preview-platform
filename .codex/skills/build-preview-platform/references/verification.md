@@ -19,6 +19,8 @@ The render command generally needs XR, Composition, and Function package definit
 ## Local integration scenarios
 
 1. **Bootstrap:** One documented command brings up `kind` and controllers. Check Crossplane function/provider health, Argo CD readiness, Backstage catalog entry, and ingress resolution. A fresh operator can identify missing prerequisites.
+
+For this repository, `deploy/local/preflight.sh` checks prerequisites, `deploy/local/bootstrap.sh` converges the pinned local control plane and supervised watcher, `deploy/local/start-portal.sh` starts Backstage, and `deploy/local/verify-platform.sh --portal` checks the installed path. Keep the private Argo deploy key and MCP token outside Git. An idempotent rerun on an existing cluster is evidence for reuse; do not call it a fresh-machine validation unless the absent-cluster path has actually run.
 2. **Namespace PR:** Open a trusted code-only PR. Required CI succeeds for the current SHA. Evaluator explains `namespace`; GitOps contains one XR; Argo CD syncs; Crossplane reports ready; app health and create/update incident work at the local URL.
 3. **vCluster PR:** Open a trusted PR with the allowed `IncidentPolicy` requirement. Evaluator explains `vcluster`; a distinct virtual API server exists; the CRD and app are inside it; the host cluster does not gain the demo CRD; ingress reaches the app.
 4. **Rejection:** Ask for an unsupported privileged change or exceed a configured quota. Backstage and Codex show the same explanation; no XR or preview resources appear.

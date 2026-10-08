@@ -6,7 +6,9 @@ The template accepts `requestId`, the source `repoUrl`, `size` (`small` or `medi
 
 ## Run locally
 
-Use Node 22, Yarn 4.13.0 from the generated portal, and a GitHub token that can create pull requests in the source repository. Keep tokens outside Git. In one terminal, start the trusted status API:
+For a repeatable setup, use the [local setup runbook](local-setup.md) and `deploy/local/start-portal.sh`; it prepares the committed Yarn dependencies and TypeScript build, reads the existing `gh` credential, creates or reuses a private MCP token, and starts the portal in the foreground. `deploy/local/verify-platform.sh --portal` then checks the authenticated catalog entries as well as the control plane.
+
+For a manual start, use Node 22 or 24, Yarn 4.13.0 from the generated portal, and a GitHub token that can create pull requests in the source repository. Keep tokens outside Git. In one terminal, start the trusted status API:
 
 ```sh
 cd platform/evaluator

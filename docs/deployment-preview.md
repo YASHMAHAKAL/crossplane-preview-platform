@@ -22,6 +22,23 @@ To check a live PR, enter its number on Backstage **PR Previews** or ask Codex f
 deploy/local/verify-preview.sh <PR number> vcluster
 ```
 
-Inspect the virtual Deployment through the vCluster kubeconfig Secret and a temporary API port forward; [vCluster documents the default `vc-NAME` Secret and localhost:8443 endpoint](https://www.vcluster.com/docs/vcluster/manage/accessing-vcluster). Confirm the replica and resource values in the virtual API, along with the live app route. Close the PR and run `deploy/local/verify-preview.sh <PR number> deleted` after status reports `cleanup-verified`.
+Inspect the virtual Deployment through the vCluster kubeconfig Secret and a temporary API port forward. For the pinned chart, the host namespace contains `vc-incident-tracker-pr-N` and control-plane pod `incident-tracker-pr-N-0`; [vCluster documents this Secret and localhost:8443 access pattern](https://www.vcluster.com/docs/vcluster/manage/accessing-vcluster). Run the port forward in one terminal:
+
+```sh
+name=incident-tracker-pr-<PR number>
+kubectl --context kind-preview-platform -n "$name" port-forward "pod/$name-0" 8443:8443
+```
+
+In another terminal, retrieve the temporary kubeconfig with private file permissions and inspect the virtual Deployment:
+
+```sh
+name=incident-tracker-pr-<PR number>
+umask 077
+kubectl --context kind-preview-platform -n "$name" get secret "vc-$name" -o jsonpath='{.data.config}' | base64 --decode > "/tmp/$name-kubeconfig"
+kubectl --kubeconfig="/tmp/$name-kubeconfig" -n default get deployment incident-tracker -o json
+rm -f "/tmp/$name-kubeconfig"
+```
+
+Confirm `spec.replicas`, `status.readyReplicas`, and container resource requests/limits. Kubernetes may normalize `1000m` to `1` CPU and `1024Mi` to `1Gi`. Close the PR and run `deploy/local/verify-preview.sh <PR number> deleted` after status reports `cleanup-verified`.
 
 Pulseboard currently writes incidents to an `emptyDir` in each app pod. Two replicas demonstrate deployment behavior and serve the UI, but their incident records are independent. A shared data store is needed before treating two replicas as consistent application storage.

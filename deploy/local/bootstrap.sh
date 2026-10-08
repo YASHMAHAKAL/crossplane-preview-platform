@@ -13,7 +13,7 @@ k() { kubectl --context "$context" "$@"; }
 
 "$repo_root/deploy/local/preflight.sh"
 
-if ! kind get clusters | rg -qx "$cluster"; then
+if ! kind get clusters | grep -Fxq -- "$cluster"; then
   note "creating $cluster from the pinned kind config"
   kind create cluster --config "$repo_root/deploy/local/kind.yaml"
 fi

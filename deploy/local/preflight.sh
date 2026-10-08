@@ -9,7 +9,7 @@ gitops_url=git@github.com:YASHMAHAKAL/preview-gitops.git
 fail() { echo "preflight: $*" >&2; exit 1; }
 check() { command -v "$1" >/dev/null || fail "install $1 and put it on PATH"; }
 
-for command in bash curl docker gh git go helm kind kubectl node python3 rg systemctl; do
+for command in bash curl docker gh git go helm kind kubectl node python3 systemctl; do
   check "$command"
 done
 [[ -f "$repo_root/deploy/local/kind.yaml" ]] || fail 'run from a complete project checkout'
@@ -25,7 +25,7 @@ docker info >/dev/null 2>&1 || fail 'Docker daemon is unavailable to this user'
 gh auth token >/dev/null 2>&1 || fail 'run gh auth login with access to GitHub Actions artifacts'
 GIT_TERMINAL_PROMPT=0 git ls-remote "$gitops_url" HEAD >/dev/null 2>&1 || fail "SSH read access to $gitops_url is unavailable"
 
-if kind get clusters | rg -qx "$cluster"; then
+if kind get clusters | grep -Fxq -- "$cluster"; then
   kubectl --context "$context" get node >/dev/null || fail "$context is unavailable"
   if ! kubectl --context "$context" -n argocd get secret preview-gitops-repo >/dev/null 2>&1; then
     [[ -r ${PREVIEW_ARGO_REPO_KEY_FILE:-} ]] || fail 'set PREVIEW_ARGO_REPO_KEY_FILE to an existing read-only GitOps deploy key'

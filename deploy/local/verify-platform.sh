@@ -28,7 +28,7 @@ for composition in preview-namespace preview-vcluster; do
 done
 k -n argocd get appproject preview-environments >/dev/null || fail 'missing Argo CD AppProject'
 repo_secrets=$(k -n argocd get secrets -l argocd.argoproj.io/secret-type=repository -o name)
-printf '%s\n' "$repo_secrets" | rg -qx 'secret/preview-gitops-repo' || fail 'Argo CD GitOps repository Secret is missing its label'
+printf '%s\n' "$repo_secrets" | grep -Fxq 'secret/preview-gitops-repo' || fail 'Argo CD GitOps repository Secret is missing its label'
 configured_url=$(k -n argocd get secret preview-gitops-repo -o jsonpath='{.data.url}' | python3 -c 'import base64,sys; print(base64.b64decode(sys.stdin.read()).decode())')
 [[ "$configured_url" == git@github.com:YASHMAHAKAL/preview-gitops.git ]] || fail 'Argo CD GitOps repository URL is incorrect'
 appset_health=

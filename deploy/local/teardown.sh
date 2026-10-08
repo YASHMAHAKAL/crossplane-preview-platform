@@ -9,10 +9,10 @@ fi
 if [[ "$1" == --delete-cluster ]]; then
   open_prs=$(gh pr list --repo YASHMAHAKAL/crossplane-preview-platform --state open --json number --jq 'length')
   [[ "$open_prs" == 0 ]] || { echo "Refusing cluster deletion: $open_prs source PR(s) are open." >&2; exit 1; }
-  if kind get clusters | rg -qx preview-platform; then
+  if kind get clusters | grep -Fxq preview-platform; then
     active=$(kubectl --context kind-preview-platform get previewenvironments.preview.platform.example.org -o name)
     [[ -z "$active" ]] || { echo 'Refusing cluster deletion: preview XRs remain.' >&2; exit 1; }
-    active=$(kubectl --context kind-preview-platform -n argocd get applications -o name | rg '^application.argoproj.io/preview-' || true)
+    active=$(kubectl --context kind-preview-platform -n argocd get applications -o name | grep '^application.argoproj.io/preview-' || true)
     [[ -z "$active" ]] || { echo 'Refusing cluster deletion: preview Argo Applications remain.' >&2; exit 1; }
   fi
   gitops_root=$HOME/.local/share/crossplane-preview-platform/preview-gitops
@@ -27,7 +27,7 @@ for service in preview-watcher.service preview-status-api.service; do
     systemctl --user disable --now "$service"
   fi
 done
-if [[ "$1" == --delete-cluster ]] && kind get clusters | rg -qx preview-platform; then
+if [[ "$1" == --delete-cluster ]] && kind get clusters | grep -Fxq preview-platform; then
   kind delete cluster --name preview-platform
 fi
 echo 'teardown: project services stopped; private GitOps checkout and credentials retained'

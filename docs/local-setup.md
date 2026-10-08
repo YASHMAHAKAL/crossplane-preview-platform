@@ -5,7 +5,7 @@ This runbook recreates the **local control plane** for the existing `YASHMAHAKAL
 ## Prerequisites and access
 
 - Linux with a user systemd manager, Docker access, and enough resources for kind, Crossplane, Argo CD, ingress, and one vCluster. The measured host had a 12 CPU, 15 GiB allocatable kind node; smaller hosts have not been verified.
-- `kind`, `kubectl`, Helm, Go, Node 22 or 24, Python 3, `gh`, Git, `curl`, and `rg` on `PATH`. The kind node image, Crossplane 2.4.0, Argo CD v3.5.2, provider-helm 1.2.0, and NGINX ingress 2.7.3 are pinned in the project files and bootstrap. `kind` v0.33.0 was used for the last verification.
+- `kind`, `kubectl`, Helm, Go, Node 22 or 24, Python 3, `gh`, Git, and `curl` on `PATH`. The kind node image, Crossplane 2.4.0, Argo CD v3.5.2, provider-helm 1.2.0, and NGINX ingress 2.7.3 are pinned in the project files and bootstrap. `kind` v0.33.0 was used for the last verification.
 - `gh auth login` with access to source PR metadata and GitHub Actions artifacts. The same account needs PR write access to request previews through Backstage. The watcher obtains the GitHub token from `gh` at service start; no token goes into Git.
 - SSH read/write access to `git@github.com:YASHMAHAKAL/preview-gitops.git` for the evaluator's private checkout. Argo CD uses a **separate read-only deploy key** for that repository. The source repository and its GHCR app/Function packages must be readable by the cluster.
 

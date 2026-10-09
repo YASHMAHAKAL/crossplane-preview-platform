@@ -59,6 +59,7 @@ Define one modern cluster-scoped XRD (for example `preview.platform.example.org/
 | `image.digest` | Immutable artifact that passed required checks; reject mutable `latest`. |
 | `request.size`, `request.ttl` | Bounded defaults from trusted local operator config, never PR-controlled. |
 | `deployment.replicas`, `deployment.resources` | Optional, bounded settings normalized from the exact-head `deploy/incident-tracker/preview.json` diff. Validated again by the Function; no raw Kubernetes YAML reaches trusted GitOps. |
+| `incidentPolicy.allowCritical` | Optional boolean normalized from the exact-head IncidentPolicy CRD edit. The Function reconstructs the CRD in vCluster mode; raw CRD JSON never enters GitOps. |
 | `preview.host` | Normalized, collision-free local hostname assigned by the evaluator. |
 | `decision.mode`, `decision.reasonCodes` | Selected `namespace` or `vcluster` and machine-readable explanation. |
 | `compositionRef` or supported v2 selector | Explicitly chooses the matching Composition; confirm exact supported field in the pinned release. |
@@ -78,7 +79,7 @@ Implement the evaluator as a Go service and CLI sharing one typed policy package
 3. Choose namespace for allowed namespaced app resources and code-only changes.
 4. Reject requirements the platform cannot safely or functionally render. Do not silently fall back to namespace when vCluster prerequisites fail.
 
-Changed-file paths alone are weak evidence: inspect the supported deployment/contract content or use a typed declaration whose consistency is checked. The current supported deployment input is the strict, bounded `deploy/incident-tracker/preview.json` file. Its presence in a changed-file list selects namespace only after exact-head content validation. The exact allowlisted IncidentPolicy CRD selects vCluster and takes precedence in a mixed PR. External service types, other deployment files, and Crossplane source changes fail closed. Extend rule categories with tested inputs, not special-case PR numbers.
+Changed-file paths alone are weak evidence: inspect supported content from the exact PR head. The strict, bounded `deploy/incident-tracker/preview.json` selects namespace. The `deploy/cluster/incident-policy.json` source baseline may add only `critical` to its severity enum; the evaluator compares all other canonical fields to the trusted baseline hash, then emits only `allowCritical`. This selects vCluster and takes precedence in a mixed PR. Other CRD edits, external service types, other deployment files, and Crossplane source changes fail closed. Extend rule categories with tested inputs, not special-case PR numbers.
 
 The evaluator writes idempotently to `previews/<service>-pr-<number>/` (or an equivalent unique path). Include a small metadata record with the decision and source SHA if useful, but keep the Argo CD path free of untrusted raw files. Guard concurrent updates and retries with head-SHA checks. On close/merge, remove the path and retain an audit/status record; a repeated close should be harmless.
 

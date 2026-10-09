@@ -19,11 +19,11 @@ Backstage UI and Codex via Backstage MCP -> catalog discovery and PR status
 - Pulseboard has a responsive operations dashboard, seeded incidents, severity and status filters, service health, details, updates, notes, and a JSON API.
 - The Go policy is deterministic and tested for namespace, vCluster, rejection, stale CI, invalid image, capacity, TTL expiry, and lifecycle cleanup. The GitHub reader binds the artifact to the exact PR head. The GitOps publisher accepts only evaluator-owned files and can initialize an empty trusted checkout. A watcher and status API are included.
 - Crossplane v2 XRD, two Compositions, Go function, provider-helm resources, Argo CD ApplicationSet, Backstage catalog and a read-only status action are authored. Both Compositions passed the official CLI renderer with the local Go function and Crossplane v2.4.0 runtime.
-- The current PR workflow automatically previews Incident Tracker app changes and bounded [deployment settings](docs/deployment-preview.md) in a namespace. A PR with the exact allowlisted IncidentPolicy CRD selects a vCluster; a mixed CRD and deployment PR applies the validated settings inside it. Backstage shows the service and preview status; it does not request an isolation mode. External service types, other deployment files, and Crossplane source changes remain rejected.
+- The current PR workflow automatically previews Incident Tracker app changes and bounded [deployment settings](docs/deployment-preview.md) in a namespace. A PR adding `critical` to the baseline [IncidentPolicy CRD](docs/incident-policy-preview.md) severity enum selects a vCluster; a mixed CRD and deployment PR applies the validated settings inside it. Backstage shows the service and preview status; it does not request an isolation mode. Other CRD edits, external service types, other deployment files, and Crossplane source changes remain rejected.
 - [PR #16](docs/pr-driven-phase1-verification.md) verified the new automatic app-change flow with a visible UI edit, same-PR head update, Backstage catalog link, and observed close cleanup.
 - [PR #17](docs/pr-driven-phase2-verification.md) verified two ready app replicas with the requested resources inside a vCluster under the earlier policy. [PR #18](docs/pr-driven-isolation-correction.md) verifies the corrected namespace decision, two ready replicas, quota, and cleanup.
 - Approved vCluster requests include a fixed, evaluator-authored installer Role and RoleBinding in trusted GitOps. Argo CD applies the grant in the preview namespace; no manual installer bootstrap is needed. A synthetic run and real Backstage UI PR #10 verified automatic grant, vCluster readiness, HTTP 200, and deletion.
-- GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.4`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
+- GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.5`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
 - The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#14](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, close and merge cleanup, and TTL recovery. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI and kept the IncidentPolicy CRD inside the virtual API. PR #9 removed a namespace preview after merge. PR #10 proved the Backstage status page, its task deep link, and the automatic vCluster installer grant on a real PR. PRs #11–#14 produced the reliability findings and measurements documented below. All thirteen approved previews served `/healthz` before their resources were removed after close, merge, or TTL expiry. See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
@@ -81,12 +81,12 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    helm install nginx-ingress oci://ghcr.io/nginx/charts/nginx-ingress --version 2.7.3 --namespace nginx-ingress --create-namespace --values deploy/local/nginx-ingress-values.yaml
    ```
 
-2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed; the installed tag is `function-v0.1.4`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
+2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed; the installed tag is `function-v0.1.5`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
 
    ```sh
    cd platform/crossplane/function
-   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.4 .
-   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.4 --package-file=/tmp/function-preview-resources.xpkg
+   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.5 .
+   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.5 --package-file=/tmp/function-preview-resources.xpkg
    cd ../../..
    ```
 
@@ -135,7 +135,7 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
 ## Demonstration checks
 
 - Change an Incident Tracker app file and open a source PR. The Go decision should be `namespace`, and the status action should eventually return `http://incident-tracker-pr-<n>.localhost:8088` after `/healthz` succeeds.
-- Open a direct PR with the exact allowlisted IncidentPolicy CRD file; it should lead to `vcluster`. Check the CRD exists **inside** the virtual cluster and is absent from the host cluster.
+- Open a direct PR adding `critical` to the baseline IncidentPolicy severity enum; it should lead to `vcluster`. Check the changed CRD exists **inside** the virtual cluster and is absent from the host cluster.
 - Edit a disallowed cluster manifest such as a `Node`; the evaluator should report `unsupported-cluster-resource` and write no XR.
 - Close or merge the PR, or let its TTL expire. The watcher publishes removal, checks the Argo CD Application, XR, host namespace, persistent volumes, and local route, then reports `deleted` after a 30-second settle period. A blocked check or remaining resource becomes `cleanup-failed` after ten minutes and is retried. `pr-closed`, `pr-merged`, and `ttl-expired` identify the trigger; inspect the status evidence for any failed cleanup. The status API hides the URL at the TTL deadline even if the watcher is temporarily stopped; actual resource removal still requires a running watcher and controllers.
 

@@ -34,6 +34,13 @@ func TestPublishedCapabilityDigest(t *testing.T) {
 	if config.AllowedCRD.ManifestSHA256 != hex.EncodeToString(hash[:]) {
 		t.Fatal("config.example.json capability digest differs from Backstage template")
 	}
+	sourceBytes, err := os.ReadFile("../../../../" + IncidentPolicyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseIncidentPolicy(string(sourceBytes), config.AllowedCRD); err != nil {
+		t.Fatalf("checked-in source CRD is outside the supported schema contract: %v", err)
+	}
 }
 
 func fixture() (Snapshot, Config) {
@@ -53,11 +60,12 @@ func fixture() (Snapshot, Config) {
 }
 
 func TestPolicyTable(t *testing.T) {
-	crdBytes, err := os.ReadFile("../../../backstage/templates/request-preview/cluster/deploy/cluster/incident-policy.json")
+	crdBytes, err := os.ReadFile("../../../../deploy/cluster/incident-policy.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	crd := string(crdBytes)
+	criticalCRD := withCriticalSeverity(t, crd)
 	deployment := strings.Replace(deploymentFixture, `"replicas":1`, `"replicas":2`, 1)
 	cases := []struct {
 		name                string
@@ -70,7 +78,10 @@ func TestPolicyTable(t *testing.T) {
 		{"no changed files", func(s *Snapshot) { s.Files = []ChangedFile{} }, "skipped", "", "no-previewable-change"},
 		{"unknown source", func(s *Snapshot) { s.Files = []ChangedFile{{Path: "other-app/index.html"}} }, "rejected", "", "unsupported-change"},
 		{"cluster API", func(s *Snapshot) {
-			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
+			s.Files = append(s.Files, ChangedFile{Path: IncidentPolicyPath, Content: crd})
+		}, "approved", "vcluster", "cluster-api-required"},
+		{"cluster API schema edit", func(s *Snapshot) {
+			s.Files = []ChangedFile{{Path: IncidentPolicyPath, Content: criticalCRD}}
 		}, "approved", "vcluster", "cluster-api-required"},
 		{"bounded deployment settings", func(s *Snapshot) {
 			s.Files = []ChangedFile{{Path: DeploymentConfigPath, Content: deployment}}
@@ -79,7 +90,7 @@ func TestPolicyTable(t *testing.T) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment})
 		}, "approved", "namespace", "namespaced-deployment-change"},
 		{"cluster API and deployment settings", func(s *Snapshot) {
-			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment}, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: crd})
+			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: deployment}, ChangedFile{Path: IncidentPolicyPath, Content: criticalCRD})
 		}, "approved", "vcluster", "cluster-api-required"},
 		{"external service type", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: DeploymentConfigPath, Content: strings.Replace(deployment, `"replicas":2`, `"replicas":2,"serviceType":"NodePort"`, 1)})
@@ -98,7 +109,7 @@ func TestPolicyTable(t *testing.T) {
 			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/node.json", Content: `{"apiVersion":"v1","kind":"Node"}`})
 		}, "rejected", "", "unsupported-cluster-resource"},
 		{"modified CRD schema", func(s *Snapshot) {
-			s.Files = append(s.Files, ChangedFile{Path: "deploy/cluster/incident-policy.json", Content: strings.Replace(crd, `"high"`, `"critical"`, 1)})
+			s.Files = append(s.Files, ChangedFile{Path: IncidentPolicyPath, Content: strings.Replace(crd, `"high"`, `"critical"`, 1)})
 		}, "rejected", "", "unsupported-cluster-resource"},
 		{"workflow edit", func(s *Snapshot) { s.Files = append(s.Files, ChangedFile{Path: ".github/workflows/build.yml"}) }, "rejected", "", "unsupported-change"},
 		{"platform edit", func(s *Snapshot) {

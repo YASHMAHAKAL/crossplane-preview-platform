@@ -56,6 +56,11 @@ spec:
                 capabilities:
                   type: array
                   items: {type: string, enum: [incident-policy]}
+                incidentPolicy:
+                  type: object
+                  required: [allowCritical]
+                  properties:
+                    allowCritical: {type: boolean}
                 deployment:
                   type: object
                   required: [replicas, resources]

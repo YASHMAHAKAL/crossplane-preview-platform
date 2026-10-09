@@ -3,9 +3,10 @@
 ## Current migration order
 
 1. Verified: real Incident Tracker app file changes from trusted source PRs select namespace automatically; `preview.request.json` has no authority.
-2. Current slice: validate the bounded `deploy/incident-tracker/preview.json` diff, select namespace, and prove replicas/resources, rollout capacity, and close cleanup on a real PR. Keep the exact allowlisted CRD and mixed deployment/CRD paths in vCluster.
-3. Add exact-head candidate builds and content-aware evaluation for supported Crossplane source changes and any further deployment kinds. Reject host-impacting edits that cannot be safely tested.
-4. Add Backstage templates that propose real source file changes and open ordinary PRs, then show local cluster resources with scoped access. Keep catalog/status available to Codex MCP.
+2. Verified: the bounded `deploy/incident-tracker/preview.json` diff selects namespace, with live replicas/resources, rollout capacity, and close cleanup.
+3. Current slice: validate a real IncidentPolicy severity enum extension, select vCluster, and prove the changed CRD and mixed deployment settings inside its virtual API, host isolation, and close cleanup.
+4. Add exact-head candidate builds and content-aware evaluation for supported Crossplane source changes and any further deployment kinds. Reject host-impacting edits that cannot be safely tested.
+5. Add Backstage templates that propose real source file changes and open ordinary PRs, then show local cluster resources with scoped access. Keep catalog/status available to Codex MCP.
 
 The original sequence below describes how the initial request-template prototype was built. It is historical and must not reintroduce manual preview-mode selection.
 

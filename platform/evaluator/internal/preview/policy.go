@@ -1,8 +1,6 @@
 package preview
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -10,7 +8,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "4"
+const PolicyVersion = "5"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -53,6 +51,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	needsVirtualCluster := false
 	deploymentChanged := false
 	var deployment DeploymentSpec
+	var incidentPolicy IncidentPolicySpec
 	evidence := []string{}
 	appChanges := []string{}
 	for _, file := range snapshot.Files {
@@ -74,39 +73,19 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 			if !strings.HasSuffix(file.Path, ".json") || file.Content == "" {
 				return decision(snapshot, "rejected", "", "unsupported-manifest-format", file.Path)
 			}
-			var manifest struct {
-				APIVersion string `json:"apiVersion"`
-				Kind       string `json:"kind"`
-				Metadata   struct {
-					Name string `json:"name"`
-				} `json:"metadata"`
-				Spec struct {
-					Group string `json:"group"`
-					Scope string `json:"scope"`
-					Names struct {
-						Kind string `json:"kind"`
-					} `json:"names"`
-				} `json:"spec"`
-			}
-			if err := json.Unmarshal([]byte(file.Content), &manifest); err != nil {
+			if !json.Valid([]byte(file.Content)) {
 				return decision(snapshot, "rejected", "", "invalid-manifest", file.Path)
 			}
-			if manifest.APIVersion != "apiextensions.k8s.io/v1" || manifest.Kind != "CustomResourceDefinition" ||
-				manifest.Metadata.Name != config.AllowedCRD.Name || manifest.Spec.Group != config.AllowedCRD.Group ||
-				manifest.Spec.Names.Kind != config.AllowedCRD.Kind || manifest.Spec.Scope != "Namespaced" {
+			if file.Path != IncidentPolicyPath || file.Status == "removed" {
 				return decision(snapshot, "rejected", "", "unsupported-cluster-resource", file.Path)
 			}
-			var canonical map[string]any
-			if err := json.Unmarshal([]byte(file.Content), &canonical); err != nil {
-				return decision(snapshot, "rejected", "", "invalid-manifest", file.Path)
-			}
-			encoded, _ := json.Marshal(canonical)
-			hash := sha256.Sum256(encoded)
-			if hex.EncodeToString(hash[:]) != config.AllowedCRD.ManifestSHA256 {
+			parsed, err := ParseIncidentPolicy(file.Content, config.AllowedCRD)
+			if err != nil {
 				return decision(snapshot, "rejected", "", "unsupported-cluster-resource", file.Path+":schema-mismatch")
 			}
+			incidentPolicy = parsed
 			needsVirtualCluster = true
-			evidence = append(evidence, file.Path+":CustomResourceDefinition/"+manifest.Metadata.Name)
+			evidence = append(evidence, fmt.Sprintf("%s:CustomResourceDefinition/%s:allowCritical=%t", file.Path, config.AllowedCRD.Name, parsed.AllowCritical))
 			continue
 		}
 		if strings.HasPrefix(file.Path, "app/incident-tracker/") {
@@ -150,6 +129,9 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	result.Request = &snapshot.Request
 	if deploymentChanged {
 		result.Deployment = &deployment
+	}
+	if needsVirtualCluster {
+		result.IncidentPolicy = &incidentPolicy
 	}
 	return result
 }

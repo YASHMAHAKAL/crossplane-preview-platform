@@ -21,6 +21,10 @@ type WorkloadDeployment struct {
 	} `json:"resources"`
 }
 
+type IncidentPolicySettings struct {
+	AllowCritical bool `json:"allowCritical"`
+}
+
 type PreviewXR struct {
 	Metadata struct {
 		Name string `json:"name"`
@@ -50,8 +54,9 @@ type PreviewXR struct {
 			Mode        string   `json:"mode"`
 			ReasonCodes []string `json:"reasonCodes"`
 		} `json:"decision"`
-		Capabilities []string            `json:"capabilities"`
-		Deployment   *WorkloadDeployment `json:"deployment"`
+		Capabilities   []string                `json:"capabilities"`
+		Deployment     *WorkloadDeployment     `json:"deployment"`
+		IncidentPolicy *IncidentPolicySettings `json:"incidentPolicy"`
 	} `json:"spec"`
 }
 
@@ -91,6 +96,9 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 	}
 	if mode == "namespace" && len(xr.Spec.Capabilities) != 0 {
 		return nil, errors.New("namespace preview cannot carry cluster capabilities")
+	}
+	if (len(xr.Spec.Capabilities) == 0) != (xr.Spec.IncidentPolicy == nil) {
+		return nil, errors.New("IncidentPolicy settings and capability must appear together")
 	}
 	if xr.Spec.Deployment != nil {
 		config := xr.Spec.Deployment
@@ -140,7 +148,7 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 
 	documents := []map[string]any{app[0], app[1], app[2]}
 	if len(xr.Spec.Capabilities) > 0 {
-		documents = append([]map[string]any{incidentPolicyCRD()}, documents...)
+		documents = append([]map[string]any{incidentPolicyCRD(xr.Spec.IncidentPolicy.AllowCritical)}, documents...)
 	}
 	var manifestParts []string
 	for _, doc := range documents {
@@ -233,7 +241,11 @@ func appObjects(xr PreviewXR, hostNamespace bool, labels map[string]any) []map[s
 	return []map[string]any{deployment, service, ingress}
 }
 
-func incidentPolicyCRD() map[string]any {
+func incidentPolicyCRD(allowCritical bool) map[string]any {
+	severities := []any{"low", "high"}
+	if allowCritical {
+		severities = append(severities, "critical")
+	}
 	return obj(map[string]any{
 		"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
 		"metadata": obj(map[string]any{"name": "incidentpolicies.incidents.demo.local"}),
@@ -244,7 +256,7 @@ func incidentPolicyCRD() map[string]any {
 				"name": "v1alpha1", "served": true, "storage": true,
 				"schema": obj(map[string]any{"openAPIV3Schema": obj(map[string]any{
 					"type": "object", "properties": obj(map[string]any{"spec": obj(map[string]any{
-						"type": "object", "properties": obj(map[string]any{"severity": obj(map[string]any{"type": "string", "enum": []any{"low", "high"}})}),
+						"type": "object", "properties": obj(map[string]any{"severity": obj(map[string]any{"type": "string", "enum": severities})}),
 					})}),
 				})}),
 			})},

@@ -79,6 +79,12 @@ type DeploymentSpec struct {
 	Resources DeploymentResources `json:"resources"`
 }
 
+// IncidentPolicySpec is the only PR-controlled cluster API setting allowed
+// into trusted GitOps. The Function reconstructs the CRD from this value.
+type IncidentPolicySpec struct {
+	AllowCritical bool `json:"allowCritical"`
+}
+
 type Snapshot struct {
 	PR             PullRequest   `json:"pr"`
 	Request        Request       `json:"request"`
@@ -88,14 +94,15 @@ type Snapshot struct {
 }
 
 type Decision struct {
-	PolicyVersion string          `json:"policyVersion"`
-	Phase         string          `json:"phase"`
-	Mode          string          `json:"mode,omitempty"`
-	ReasonCodes   []string        `json:"reasonCodes"`
-	Evidence      []string        `json:"evidence"`
-	HeadSHA       string          `json:"headSHA"`
-	Capabilities  []string        `json:"capabilities,omitempty"`
-	ImageDigest   string          `json:"imageDigest,omitempty"`
-	Request       *Request        `json:"request,omitempty"`
-	Deployment    *DeploymentSpec `json:"deployment,omitempty"`
+	PolicyVersion  string              `json:"policyVersion"`
+	Phase          string              `json:"phase"`
+	Mode           string              `json:"mode,omitempty"`
+	ReasonCodes    []string            `json:"reasonCodes"`
+	Evidence       []string            `json:"evidence"`
+	HeadSHA        string              `json:"headSHA"`
+	Capabilities   []string            `json:"capabilities,omitempty"`
+	ImageDigest    string              `json:"imageDigest,omitempty"`
+	Request        *Request            `json:"request,omitempty"`
+	Deployment     *DeploymentSpec     `json:"deployment,omitempty"`
+	IncidentPolicy *IncidentPolicySpec `json:"incidentPolicy,omitempty"`
 }

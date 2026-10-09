@@ -46,6 +46,9 @@ func MakeXR(snapshot Snapshot, result Decision, config Config) (map[string]any, 
 	if result.Deployment != nil {
 		spec["deployment"] = result.Deployment
 	}
+	if result.IncidentPolicy != nil {
+		spec["incidentPolicy"] = result.IncidentPolicy
+	}
 	return map[string]any{
 		"apiVersion": "preview.platform.example.org/v1alpha1", "kind": "PreviewEnvironment",
 		"metadata": map[string]any{

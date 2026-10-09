@@ -32,8 +32,8 @@ func TestAllowedClusterCapabilityMatchesRenderedCRD(t *testing.T) {
 	if err := json.Unmarshal(data, &requested); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(requested, incidentPolicyCRD()) {
-		t.Fatal("Backstage-requested CRD differs from the fixed CRD rendered inside vCluster")
+	if !reflect.DeepEqual(requested, incidentPolicyCRD(false)) {
+		t.Fatal("trusted baseline CRD differs from the CRD rendered inside vCluster")
 	}
 }
 
@@ -56,6 +56,7 @@ func TestRenderNamespace(t *testing.T) {
 func TestRenderVCluster(t *testing.T) {
 	xr := sampleXR("vcluster")
 	xr.Spec.Capabilities = []string{"incident-policy"}
+	xr.Spec.IncidentPolicy = &IncidentPolicySettings{}
 	resources, err := Render(xr, "vcluster")
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +106,7 @@ func TestRenderNamespaceDeploymentSettings(t *testing.T) {
 func TestRenderVClusterDeploymentSettings(t *testing.T) {
 	xr := withDeploymentSettings(sampleXR("vcluster"))
 	xr.Spec.Capabilities = []string{"incident-policy"}
+	xr.Spec.IncidentPolicy = &IncidentPolicySettings{AllowCritical: true}
 	resources, err := Render(xr, "vcluster")
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +114,7 @@ func TestRenderVClusterDeploymentSettings(t *testing.T) {
 	values := resources[1].Object["spec"].(map[string]any)["forProvider"].(map[string]any)["values"].(map[string]any)
 	manifests := values["experimental"].(map[string]any)["deploy"].(map[string]any)["vcluster"].(map[string]any)["manifests"].(string)
 	var deployment map[string]any
+	var crd map[string]any
 	for _, part := range strings.Split(manifests, "\n---\n") {
 		var object map[string]any
 		if err := json.Unmarshal([]byte(part), &object); err != nil {
@@ -120,9 +123,15 @@ func TestRenderVClusterDeploymentSettings(t *testing.T) {
 		if object["kind"] == "Deployment" {
 			deployment = object
 		}
+		if object["kind"] == "CustomResourceDefinition" {
+			crd = object
+		}
 	}
 	if deployment == nil {
 		t.Fatal("virtual cluster manifests have no Deployment")
+	}
+	if crd == nil || !reflect.DeepEqual(crd, incidentPolicyCRD(true)) {
+		t.Fatalf("virtual cluster did not receive approved severity extension: %#v", crd)
 	}
 	spec := deployment["spec"].(map[string]any)
 	container := spec["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]any)[0].(map[string]any)
@@ -151,5 +160,15 @@ func TestRenderRejectsMismatch(t *testing.T) {
 	xr.Spec.Deployment = &WorkloadDeployment{Replicas: 3}
 	if _, err := Render(xr, "vcluster"); err == nil {
 		t.Fatal("expected out-of-bounds deployment rejection")
+	}
+	xr = sampleXR("namespace")
+	xr.Spec.IncidentPolicy = &IncidentPolicySettings{AllowCritical: true}
+	if _, err := Render(xr, "namespace"); err == nil {
+		t.Fatal("expected cluster schema override rejection in namespace")
+	}
+	xr = sampleXR("vcluster")
+	xr.Spec.Capabilities = []string{"incident-policy"}
+	if _, err := Render(xr, "vcluster"); err == nil {
+		t.Fatal("expected missing IncidentPolicy settings rejection")
 	}
 }

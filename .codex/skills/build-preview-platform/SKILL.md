@@ -37,6 +37,6 @@ The target is a local `kind` environment. A merged PR does not trigger permanent
 
 ## How to work
 
-Work in phases. The app-diff and bounded deployment-config namespace paths are verified. Verify a real bounded IncidentPolicy schema edit mixed with deployment settings in a live vCluster PR, then design a separately isolated test path before supporting Crossplane source changes, and finally add Backstage source-change templates and cluster visibility. Make each slice reviewable: implementation, focused verification, and a short note about what works and what remains. Keep names and schemas stable once external components consume them.
+Work in phases. The app-diff and bounded deployment-config namespace paths are verified. A real bounded IncidentPolicy schema edit mixed with deployment settings was verified in a live vCluster PR. Next design a separately isolated test path before supporting Crossplane source changes, then add Backstage source-change templates and cluster visibility. Make each slice reviewable: implementation, focused verification, and a short note about what works and what remains. Keep names and schemas stable once external components consume them.
 
 The revised project is done when supported app, deployment, and Crossplane source changes trigger appropriate previews directly from PRs; Backstage can create ordinary source changes and show the local cluster; both isolation paths, rejection, preview update, URL and reason reporting, and merge/close cleanup work in a documented local demonstration; and render and policy checks pass.

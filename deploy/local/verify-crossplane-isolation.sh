@@ -122,6 +122,45 @@ guest apply -f "$repo_root/platform/crossplane/rbac/composed-resources.yaml" \
   -f "$repo_root/platform/crossplane/compositions/" >/dev/null
 guest wait --for=condition=Established xrd/previewenvironments.preview.platform.example.org --timeout=2m >/dev/null
 
+note 'waiting for virtual Crossplane RBAC aggregation'
+for ((attempt=0; attempt<60; attempt++)); do
+  if [[ $(guest auth can-i create namespaces --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes && \
+        $(guest auth can-i create deployments.apps --namespace=default --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes && \
+        $(guest auth can-i create resourcequotas --namespace=default --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes ]]; then
+    break
+  fi
+  sleep 2
+done
+(( attempt < 60 )) || fail 'virtual Crossplane RBAC did not aggregate'
+
+note 'reconciling the namespace XR fixture inside the virtual API'
+guest apply -f "$repo_root/tests/render/namespace-xr.json" >/dev/null
+if ! guest wait --for=jsonpath='{.status.conditions[?(@.type=="Synced")].status}'=True \
+  previewenvironment/incident-tracker-pr-42 --timeout=3m >/dev/null; then
+  guest get previewenvironment incident-tracker-pr-42 -o jsonpath='{.status.conditions}{"\n"}' >&2 || true
+  fail 'virtual XR did not reconcile'
+fi
+guest get namespace incident-tracker-pr-42 >/dev/null
+guest -n incident-tracker-pr-42 get \
+  resourcequota/preview-quota \
+  deployment/incident-tracker \
+  service/incident-tracker \
+  ingress/incident-tracker >/dev/null
+if host --request-timeout=5s get namespace incident-tracker-pr-42 >/dev/null 2>&1; then
+  fail 'fixture namespace leaked to the host API'
+fi
+if host --request-timeout=5s get previewenvironment incident-tracker-pr-42 >/dev/null 2>&1; then
+  fail 'fixture XR leaked to the host API'
+fi
+
+note 'deleting the virtual XR and verifying its composed namespace is removed'
+guest delete previewenvironment incident-tracker-pr-42 --wait=true --timeout=2m >/dev/null
+for ((attempt=0; attempt<60; attempt++)); do
+  if ! guest --request-timeout=5s get namespace incident-tracker-pr-42 >/dev/null 2>&1; then break; fi
+  sleep 2
+done
+(( attempt < 60 )) || fail 'virtual composed namespace remained after XR deletion'
+
 note 'checking virtual Crossplane API and package health'
 guest get composition preview-namespace preview-vcluster >/dev/null
 guest get crd previewenvironments.preview.platform.example.org >/dev/null
@@ -129,4 +168,4 @@ guest_package=$(guest get function.pkg.crossplane.io/function-preview-resources 
 [[ $guest_package == "$package" ]] || fail 'virtual Function package changed unexpectedly'
 [[ $(host --request-timeout=5s get function.pkg.crossplane.io/function-preview-resources -o jsonpath='{.spec.package}') == "$host_package" ]] \
   || fail 'host Function package changed'
-note 'PASS: virtual Crossplane, Function, XRD, and Compositions are installed; host Function stayed unchanged'
+note 'PASS: virtual XR reconciled and deleted its resources; host Function stayed unchanged'

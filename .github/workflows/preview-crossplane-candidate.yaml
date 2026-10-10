@@ -81,6 +81,12 @@ jobs:
           PACKAGE_REF: ${{ steps.package.outputs.reference }}
         run: |
           set -euo pipefail
+          controller_image=docker.io/crossplane/crossplane@sha256:c5d773aa940041475e2cf6b9adf3512cb382b1a6b889f53ed791192ed8ada75b
+          for attempt in 1 2 3; do
+            if docker pull "$controller_image"; then break; fi
+            sleep 10
+          done
+          docker image inspect "$controller_image" >/dev/null
           cat > /tmp/candidate-functions.yaml <<EOF
           apiVersion: pkg.crossplane.io/v1
           kind: Function
@@ -91,11 +97,13 @@ jobs:
           EOF
           crossplane composition render tests/render/namespace-xr.json \
             platform/crossplane/compositions/namespace.yaml /tmp/candidate-functions.yaml \
-            --crossplane-version=v2.4.0 --xrd=platform/crossplane/xrd.yaml \
+            --crossplane-version=v2.4.0 --crossplane-image="$controller_image" \
+            --xrd=platform/crossplane/xrd.yaml \
             > /tmp/candidate-namespace-render.yaml
           crossplane composition render tests/render/vcluster-xr.json \
             platform/crossplane/compositions/vcluster.yaml /tmp/candidate-functions.yaml \
-            --crossplane-version=v2.4.0 --xrd=platform/crossplane/xrd.yaml \
+            --crossplane-version=v2.4.0 --crossplane-image="$controller_image" \
+            --xrd=platform/crossplane/xrd.yaml \
             > /tmp/candidate-vcluster-render.yaml
           for kind in Namespace ResourceQuota Deployment Service Ingress; do
             grep -q "^kind: ${kind}$" /tmp/candidate-namespace-render.yaml

@@ -122,7 +122,10 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 		"app.kubernetes.io/managed-by":          "crossplane",
 	}
 	namespace := NamedResource{"namespace", obj(map[string]any{
-		"apiVersion": "v1", "kind": "Namespace", "metadata": obj(map[string]any{"name": name, "labels": labels}),
+		"apiVersion": "v1", "kind": "Namespace", "metadata": obj(map[string]any{
+			"name": name, "labels": labels,
+			"annotations": obj(map[string]any{"preview.platform.example.org/candidate-head": xr.Spec.PR.HeadSHA}),
+		}),
 	})}
 	app := appObjects(xr, mode == "namespace", labels)
 	if mode == "namespace" {

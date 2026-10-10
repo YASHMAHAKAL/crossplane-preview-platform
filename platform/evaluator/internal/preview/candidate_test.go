@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -40,10 +41,12 @@ func TestCandidateForPRRequiresCurrentSuccessfulTrustedRun(t *testing.T) {
 		conclusion string
 		record     CandidateRecord
 		wantError  bool
+		wantKind   error
 	}{
 		{name: "valid", author: "demo", status: "completed", conclusion: "success", record: valid},
 		{name: "untrusted author", author: "stranger", status: "completed", conclusion: "success", record: valid, wantError: true},
-		{name: "failed current run", author: "demo", status: "completed", conclusion: "failure", record: valid, wantError: true},
+		{name: "pending current run", author: "demo", status: "in_progress", record: valid, wantError: true, wantKind: ErrCandidatePending},
+		{name: "failed current run", author: "demo", status: "completed", conclusion: "failure", record: valid, wantError: true, wantKind: ErrCandidateFailed},
 		{name: "stale artifact head", author: "demo", status: "completed", conclusion: "success", record: CandidateRecord{HeadSHA: strings.Repeat("c", 40), PackageDigest: digest, PackageTag: tag, WorkflowRunID: 19}, wantError: true},
 	}
 	for _, tc := range cases {
@@ -74,6 +77,9 @@ func TestCandidateForPRRequiresCurrentSuccessfulTrustedRun(t *testing.T) {
 			if tc.wantError {
 				if err == nil {
 					t.Fatalf("expected rejection, got %+v", got)
+				}
+				if tc.wantKind != nil && !errors.Is(err, tc.wantKind) {
+					t.Fatalf("wanted %v, got %v", tc.wantKind, err)
 				}
 				return
 			}

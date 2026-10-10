@@ -118,6 +118,7 @@ func TestValidatePublishTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(filepath.Join(statusDir, "incident-tracker-pr-42.json"))
+	write(filepath.Join(statusDir, "incident-tracker-pr-42-c.json"))
 	if err := store.validatePublishTree(); err != nil {
 		t.Fatalf("valid evaluator tree rejected: %v", err)
 	}

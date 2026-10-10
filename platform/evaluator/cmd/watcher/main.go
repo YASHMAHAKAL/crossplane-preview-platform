@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -22,10 +23,11 @@ func main() {
 	publish := flag.Bool("publish", true, "commit and push evaluator output after each pass")
 	kubeContext := flag.String("kube-context", "kind-preview-platform", "Kubernetes context used for read-only cleanup checks")
 	previewPort := flag.Int("preview-port", 8088, "local ingress port for cleanup route checks")
+	candidateScript := flag.String("candidate-script", "", "trusted script that installs a candidate inside an approved vCluster")
 	healthFile := flag.String("health-file", "", "optional local heartbeat JSON path outside GitOps")
 	flag.Parse()
-	if *configPath == "" || *gitopsRoot == "" || *interval < 10*time.Second || *kubeContext == "" || *previewPort < 1 || *previewPort > 65535 {
-		log.Fatal("require -config, -gitops, valid -kube-context and -preview-port, and interval of at least 10s")
+	if *configPath == "" || *gitopsRoot == "" || *candidateScript == "" || *interval < 10*time.Second || *kubeContext == "" || *previewPort < 1 || *previewPort > 65535 {
+		log.Fatal("require -config, -gitops, -candidate-script, valid -kube-context and -preview-port, and interval of at least 10s")
 	}
 	data, err := os.ReadFile(*configPath)
 	if err != nil {
@@ -41,6 +43,7 @@ func main() {
 	}
 	reader := preview.GitHubReader{Client: &http.Client{Timeout: 30 * time.Second}, Token: token}
 	store := preview.Store{Root: *gitopsRoot}
+	installer := &preview.ShellCandidateInstaller{ScriptPath: *candidateScript, KubeContext: *kubeContext, Reader: reader}
 	observer := preview.KubectlCleanupObserver{Context: *kubeContext, PreviewPort: *previewPort}
 	heartbeat := preview.WatcherHeartbeat{}
 	if *healthFile != "" {
@@ -58,8 +61,8 @@ func main() {
 				log.Fatalf("write watcher heartbeat: %v", err)
 			}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		err := reconcile(ctx, reader, store, config, *publish, observer)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		err := reconcile(ctx, reader, store, config, *publish, observer, installer)
 		if *healthFile != "" {
 			heartbeat.LastCompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
 			if err == nil {
@@ -91,7 +94,7 @@ func main() {
 	}
 }
 
-func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.Store, config preview.Config, publish bool, observer preview.CleanupObserver) error {
+func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.Store, config preview.Config, publish bool, observer preview.CleanupObserver, installer *preview.ShellCandidateInstaller) error {
 	prs, err := reader.PullNumbers(ctx, config.Repository)
 	if err != nil {
 		return err
@@ -100,6 +103,11 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 	sort.SliceStable(prs, func(i, j int) bool { return prs[i].State == "closed" && prs[j].State != "closed" })
 	var failures []error
 	var cleanupNames []string
+	type candidateJob struct {
+		snapshot preview.Snapshot
+		decision preview.Decision
+	}
+	var candidateJobs []candidateJob
 	for _, pr := range prs {
 		name, err := preview.PreviewName(config.Service, pr.Number)
 		if err != nil {
@@ -122,6 +130,9 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 			continue
 		}
 		log.Printf("PR #%d head=%s phase=%s mode=%s reason=%v", pr.Number, snapshot.PR.HeadSHA, result.Phase, result.Mode, result.ReasonCodes)
+		if result.Phase == "approved" && result.Candidate != nil {
+			candidateJobs = append(candidateJobs, candidateJob{snapshot: snapshot, decision: result})
+		}
 		if snapshot.PR.State == "closed" || snapshot.PR.State == "merged" || (len(result.ReasonCodes) > 0 && result.ReasonCodes[0] == "ttl-expired") {
 			cleanupNames = append(cleanupNames, name)
 		}
@@ -145,6 +156,26 @@ func reconcile(ctx context.Context, reader preview.GitHubReader, store preview.S
 		}
 		if err := store.Publish(ctx, "Record observed PR preview cleanup"); err != nil {
 			failures = append(failures, err)
+		}
+		for _, job := range candidateJobs {
+			if installer == nil {
+				failures = append(failures, errors.New("candidate installer is not configured"))
+				continue
+			}
+			if err := installer.Ensure(ctx, store, config, job.snapshot, job.decision); err != nil {
+				if errors.Is(err, preview.ErrCandidatePending) {
+					log.Printf("PR #%d candidate virtual API pending", job.snapshot.PR.Number)
+					continue
+				}
+				failures = append(failures, fmt.Errorf("PR #%d candidate preview: %w", job.snapshot.PR.Number, err))
+			} else {
+				log.Printf("PR #%d candidate virtual preview ready at head %s", job.snapshot.PR.Number, job.snapshot.PR.HeadSHA)
+			}
+		}
+		if len(candidateJobs) > 0 {
+			if err := store.Publish(ctx, "Record candidate virtual preview state"); err != nil {
+				failures = append(failures, err)
+			}
 		}
 	}
 	if len(failures) > 0 {

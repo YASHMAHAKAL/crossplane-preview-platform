@@ -3,12 +3,14 @@ package preview
 import (
 	"encoding/json"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"path"
 	"regexp"
 	"strings"
 )
 
-const PolicyVersion = "5"
+const PolicyVersion = "6"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -52,6 +54,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	deploymentChanged := false
 	var deployment DeploymentSpec
 	var incidentPolicy IncidentPolicySpec
+	crossplaneFunctionChanged := false
 	evidence := []string{}
 	appChanges := []string{}
 	for _, file := range snapshot.Files {
@@ -92,12 +95,27 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 			appChanges = append(appChanges, file.Path)
 			continue
 		}
+		if strings.HasPrefix(file.Path, "platform/crossplane/function/") {
+			base := strings.TrimPrefix(file.Path, "platform/crossplane/function/")
+			if strings.Contains(base, "/") || !strings.HasSuffix(base, ".go") || file.Status == "removed" || file.Content == "" || len(file.Content) > 65536 {
+				return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
+			}
+			if _, err := parser.ParseFile(token.NewFileSet(), base, file.Content, 0); err != nil {
+				return decision(snapshot, "rejected", "", "invalid-crossplane-source", file.Path)
+			}
+			crossplaneFunctionChanged = true
+			evidence = append(evidence, file.Path)
+			continue
+		}
+		if strings.HasPrefix(file.Path, "platform/crossplane/") {
+			return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
+		}
 		if file.Path == "preview.request.json" || file.Path == "README.md" || strings.HasPrefix(file.Path, "docs/") {
 			continue // Legacy request files and documentation do not request a preview.
 		}
 		return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
 	}
-	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 {
+	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 && !crossplaneFunctionChanged {
 		return decision(snapshot, "skipped", "", "no-previewable-change")
 	}
 	if snapshot.ActivePreviews >= config.MaxActivePreviews {
@@ -113,9 +131,31 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		!strings.HasPrefix(snapshot.CI.ImageDigest, "ghcr.io/"+strings.ToLower(config.Repository)+"@sha256:") {
 		return decision(snapshot, "rejected", "", "invalid-image-digest")
 	}
+	if crossplaneFunctionChanged {
+		if needsVirtualCluster {
+			return decision(snapshot, "rejected", "", "unsupported-crossplane-combination")
+		}
+		name, err := PreviewName(config.Service, snapshot.PR.Number)
+		if err != nil || len(name)+2 > 63 {
+			return decision(snapshot, "rejected", "", "invalid-candidate-name")
+		}
+		if snapshot.Candidate.HeadSHA != snapshot.PR.HeadSHA || snapshot.Candidate.State == "pending" || snapshot.Candidate.State == "" {
+			return decision(snapshot, "waiting-for-ci", "", "candidate-ci-not-current")
+		}
+		if snapshot.Candidate.State != "success" {
+			return decision(snapshot, "rejected", "", "candidate-ci-failed")
+		}
+		if !digestPattern.MatchString(snapshot.Candidate.PackageDigest) ||
+			!strings.HasPrefix(snapshot.Candidate.PackageDigest, "ghcr.io/"+strings.ToLower(strings.Split(config.Repository, "/")[0])+"/function-preview-resources@sha256:") ||
+			snapshot.Candidate.WorkflowRunID < 1 {
+			return decision(snapshot, "rejected", "", "invalid-candidate-package")
+		}
+	}
 	mode, reason := "namespace", "namespaced-app-change"
 	capabilities := []string{}
-	if needsVirtualCluster {
+	if crossplaneFunctionChanged {
+		mode, reason = "vcluster", "crossplane-function-change"
+	} else if needsVirtualCluster {
 		mode, reason = "vcluster", "cluster-api-required"
 		capabilities = append(capabilities, "incident-policy")
 	} else if deploymentChanged {
@@ -126,6 +166,10 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	result := decision(snapshot, "approved", mode, reason, evidence...)
 	result.Capabilities = capabilities
 	result.ImageDigest = snapshot.CI.ImageDigest
+	if crossplaneFunctionChanged {
+		candidate := snapshot.Candidate
+		result.Candidate = &candidate
+	}
 	result.Request = &snapshot.Request
 	if deploymentChanged {
 		result.Deployment = &deployment

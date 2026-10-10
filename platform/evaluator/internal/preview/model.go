@@ -89,8 +89,16 @@ type Snapshot struct {
 	PR             PullRequest   `json:"pr"`
 	Request        Request       `json:"request"`
 	CI             CI            `json:"ci"`
+	Candidate      CandidateCI   `json:"candidate,omitempty"`
 	ActivePreviews int           `json:"activePreviews"`
 	Files          []ChangedFile `json:"files"`
+}
+
+type CandidateCI struct {
+	State         string `json:"state,omitempty"`
+	HeadSHA       string `json:"headSHA,omitempty"`
+	PackageDigest string `json:"packageDigest,omitempty"`
+	WorkflowRunID int64  `json:"workflowRunID,omitempty"`
 }
 
 type Decision struct {
@@ -102,6 +110,7 @@ type Decision struct {
 	HeadSHA        string              `json:"headSHA"`
 	Capabilities   []string            `json:"capabilities,omitempty"`
 	ImageDigest    string              `json:"imageDigest,omitempty"`
+	Candidate      *CandidateCI        `json:"candidate,omitempty"`
 	Request        *Request            `json:"request,omitempty"`
 	Deployment     *DeploymentSpec     `json:"deployment,omitempty"`
 	IncidentPolicy *IncidentPolicySpec `json:"incidentPolicy,omitempty"`

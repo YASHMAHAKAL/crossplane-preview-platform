@@ -114,7 +114,7 @@ func TestPolicyTable(t *testing.T) {
 		{"workflow edit", func(s *Snapshot) { s.Files = append(s.Files, ChangedFile{Path: ".github/workflows/build.yml"}) }, "rejected", "", "unsupported-change"},
 		{"platform edit", func(s *Snapshot) {
 			s.Files = append(s.Files, ChangedFile{Path: "platform/crossplane/function/resources.go"})
-		}, "rejected", "", "unsupported-change"},
+		}, "rejected", "", "unsupported-crossplane-change"},
 		{"quota", func(s *Snapshot) { s.ActivePreviews = 3 }, "rejected", "", "capacity-exceeded"},
 	}
 	for _, tc := range cases {

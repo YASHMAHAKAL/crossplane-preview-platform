@@ -49,10 +49,18 @@ func MakeXR(snapshot Snapshot, result Decision, config Config) (map[string]any, 
 	if result.IncidentPolicy != nil {
 		spec["incidentPolicy"] = result.IncidentPolicy
 	}
+	annotations := map[string]string{}
+	if result.Candidate != nil {
+		if result.Mode != "vcluster" || result.Candidate.HeadSHA != snapshot.PR.HeadSHA || !digestPattern.MatchString(result.Candidate.PackageDigest) {
+			return nil, errors.New("candidate metadata does not match approved vCluster decision")
+		}
+		annotations["preview.platform.example.org/candidate-package"] = result.Candidate.PackageDigest
+	}
 	return map[string]any{
 		"apiVersion": "preview.platform.example.org/v1alpha1", "kind": "PreviewEnvironment",
 		"metadata": map[string]any{
-			"name": name,
+			"name":        name,
+			"annotations": annotations,
 			"labels": map[string]string{
 				"preview.platform.example.org/service": config.Service,
 				"preview.platform.example.org/pr":      fmt.Sprint(snapshot.PR.Number),
@@ -61,6 +69,33 @@ func MakeXR(snapshot Snapshot, result Decision, config Config) (map[string]any, 
 		},
 		"spec": spec,
 	}, nil
+}
+
+// MakeCandidateXR is a normalized child request for Crossplane inside the
+// PR's vCluster. It is never written to host GitOps or applied to the host API.
+func MakeCandidateXR(snapshot Snapshot, result Decision, config Config) (map[string]any, string, error) {
+	if result.Phase != "approved" || result.Mode != "vcluster" || result.Candidate == nil ||
+		result.Candidate.HeadSHA != snapshot.PR.HeadSHA || result.IncidentPolicy != nil {
+		return nil, "", errors.New("candidate child XR requires a current approved Function decision")
+	}
+	hostName, err := PreviewName(config.Service, snapshot.PR.Number)
+	if err != nil {
+		return nil, "", err
+	}
+	name := hostName + "-c"
+	if !previewPattern.MatchString(name) || len(name) > 63 {
+		return nil, "", errors.New("candidate preview name exceeds DNS label limit")
+	}
+	child := Decision{Phase: "approved", Mode: "namespace", ImageDigest: result.ImageDigest,
+		ReasonCodes: []string{"crossplane-candidate-preview"}, Request: result.Request, Deployment: result.Deployment}
+	xr, err := MakeXR(snapshot, child, config)
+	if err != nil {
+		return nil, "", err
+	}
+	xr["metadata"].(map[string]any)["name"] = name
+	spec := xr["spec"].(map[string]any)
+	spec["preview"] = map[string]string{"host": name + ".localhost"}
+	return xr, name, nil
 }
 
 type Store struct {
@@ -298,6 +333,21 @@ func (store Store) Reconcile(snapshot Snapshot, config Config) (Decision, error)
 	}
 	if err != nil {
 		return result, err
+	}
+	if result.Phase != "approved" || result.Candidate == nil {
+		if err := store.RemoveCandidateState(name); err != nil {
+			return result, err
+		}
+	} else {
+		state, stateErr := store.CandidateState(name)
+		if stateErr != nil && !errors.Is(stateErr, os.ErrNotExist) {
+			return result, stateErr
+		}
+		if stateErr == nil && (state.HeadSHA != result.HeadSHA || state.PackageDigest != result.Candidate.PackageDigest) {
+			if err := store.RemoveCandidateState(name); err != nil {
+				return result, err
+			}
+		}
 	}
 	return result, store.WriteStatus(name, snapshot, result, firstApprovedAt, expiresAt)
 }

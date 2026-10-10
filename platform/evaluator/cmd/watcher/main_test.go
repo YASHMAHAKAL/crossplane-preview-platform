@@ -57,7 +57,7 @@ func TestOnePRReadFailureDoesNotBlockOtherPublishedCleanup(t *testing.T) {
 	}
 	reader := preview.GitHubReader{Client: server.Client(), APIBase: server.URL}
 	config := preview.Config{Service: "incident-tracker", Repository: "example/source"}
-	err := reconcile(context.Background(), reader, store, config, true, noResources{})
+	err := reconcile(context.Background(), reader, store, config, true, noResources{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "PR #1") {
 		t.Fatalf("expected failed PR read to remain visible, got %v", err)
 	}

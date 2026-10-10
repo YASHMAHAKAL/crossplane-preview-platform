@@ -12,6 +12,11 @@ import (
 
 const CandidateWorkflow = "Preview Crossplane candidate"
 
+var (
+	ErrCandidatePending = errors.New("candidate build pending")
+	ErrCandidateFailed  = errors.New("candidate build failed")
+)
+
 type CandidateRecord struct {
 	HeadSHA       string `json:"headSHA"`
 	PackageDigest string `json:"packageDigest"`
@@ -83,10 +88,13 @@ func (reader GitHubReader) CandidateForPR(ctx context.Context, config Config, nu
 		}
 	}
 	if runID == 0 {
-		return record, errors.New("no candidate build for the current PR head")
+		return record, fmt.Errorf("%w: no run for the current PR head", ErrCandidatePending)
 	}
-	if runStatus != "completed" || conclusion != "success" {
-		return record, fmt.Errorf("current-head candidate build is %s/%s", runStatus, conclusion)
+	if runStatus != "completed" {
+		return record, fmt.Errorf("%w: current-head run is %s", ErrCandidatePending, runStatus)
+	}
+	if conclusion != "success" {
+		return record, fmt.Errorf("%w: current-head run concluded %s", ErrCandidateFailed, conclusion)
 	}
 	var artifacts struct {
 		Artifacts []struct {
@@ -105,7 +113,7 @@ func (reader GitHubReader) CandidateForPR(ctx context.Context, config Config, nu
 		}
 	}
 	if artifactID == 0 {
-		return record, errors.New("candidate artifact for current head is missing or expired")
+		return record, fmt.Errorf("%w: artifact for current head is missing or expired", ErrCandidatePending)
 	}
 	data, err := reader.get(ctx, fmt.Sprintf("%s/actions/artifacts/%d/zip", repo, artifactID), 2<<20)
 	if err != nil {

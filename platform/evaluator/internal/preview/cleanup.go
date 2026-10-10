@@ -88,18 +88,23 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 	if client == nil {
 		client = &http.Client{Timeout: 3 * time.Second}
 	}
-	url := fmt.Sprintf("http://%s.localhost:%d/healthz", name, observer.PreviewPort)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("probe preview route: %w", err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusNotFound {
-		remaining = append(remaining, fmt.Sprintf("route/%s (HTTP %d)", name, response.StatusCode))
+	for _, routeName := range []string{name, name + "-c"} {
+		if len(routeName) > 63 {
+			continue
+		}
+		url := fmt.Sprintf("http://%s.localhost:%d/healthz", routeName, observer.PreviewPort)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, fmt.Errorf("probe preview route %s: %w", routeName, err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusNotFound {
+			remaining = append(remaining, fmt.Sprintf("route/%s (HTTP %d)", routeName, response.StatusCode))
+		}
 	}
 	return remaining, nil
 }
@@ -147,7 +152,7 @@ func (store Store) ObserveCleanup(name string, remaining []string, observationEr
 	if observationErr == nil && len(remaining) == 0 && !store.now().Before(started.Add(CleanupSettleDelay)) {
 		result.Phase = "deleted"
 		result.ReasonCodes = append(result.ReasonCodes, "cleanup-verified")
-		result.Evidence = append(result.Evidence, "Argo Application, XR, namespace, persistent volumes, and preview route absent")
+		result.Evidence = append(result.Evidence, "Argo Application, XR, namespace, persistent volumes, and both preview routes absent")
 	} else {
 		if observationErr != nil {
 			result.Evidence = append(result.Evidence, observationErr.Error())

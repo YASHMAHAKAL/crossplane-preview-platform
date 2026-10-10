@@ -64,3 +64,39 @@ func TestStatusOnlySurfacesURLAfterHealth(t *testing.T) {
 		t.Fatalf("expired preview must hide the URL even if its route is live: %+v, %v", status, err)
 	}
 }
+
+func TestCandidateURLRequiresCurrentVirtualInstall(t *testing.T) {
+	snapshot, config := candidateFixture(t)
+	store := Store{Root: t.TempDir(), PreviewPort: 8088,
+		Readiness: readinessFunc(func(context.Context, string, string) (bool, error) { return true, nil })}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	name, _ := PreviewName(config.Service, snapshot.PR.Number)
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != name+"-c.localhost:8088" {
+			t.Fatalf("candidate status probed baseline route: %s", req.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
+	})}
+	status, err := store.Status(name, client)
+	if err != nil || status.Phase != "provisioning" || status.URL != "" {
+		t.Fatalf("missing candidate install must hide URL: %+v, %v", status, err)
+	}
+	state := CandidatePreviewState{HeadSHA: snapshot.PR.HeadSHA, PackageDigest: snapshot.Candidate.PackageDigest, State: "ready"}
+	if err := store.WriteCandidateState(name, state); err != nil {
+		t.Fatal(err)
+	}
+	status, err = store.Status(name, client)
+	if err != nil || status.Phase != "ready" || status.URL != "http://"+name+"-c.localhost:8088" {
+		t.Fatalf("candidate URL missing: %+v, %v", status, err)
+	}
+	snapshot.Candidate.State = "pending"
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	status, err = store.Status(name, client)
+	if err != nil || status.Phase != "waiting-for-ci" || status.URL != "" {
+		t.Fatalf("new pending candidate must hide old URL: %+v, %v", status, err)
+	}
+}

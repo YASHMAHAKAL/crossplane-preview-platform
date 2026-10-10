@@ -171,6 +171,16 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 				}
 				entry.Content = content
 			}
+			if file.Status != "removed" && strings.HasPrefix(entry.Path, "platform/crossplane/function/") && strings.HasSuffix(entry.Path, ".go") {
+				if strings.Contains(entry.Path, "..") || strings.Contains(entry.Path, "\\") {
+					return snapshot, errors.New("invalid Crossplane source path")
+				}
+				content, err := reader.contentAtHead(ctx, repo, entry.Path, pr.Head.SHA)
+				if err != nil {
+					return snapshot, err
+				}
+				entry.Content = content
+			}
 			snapshot.Files = append(snapshot.Files, entry)
 		}
 		if len(changed) < 100 {
@@ -182,6 +192,22 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 	}
 	if err := reader.fillCI(ctx, repo, &snapshot); err != nil {
 		return snapshot, err
+	}
+	for _, file := range snapshot.Files {
+		if strings.HasPrefix(file.Path, "platform/crossplane/function/") {
+			record, err := reader.CandidateForPR(ctx, config, number)
+			snapshot.Candidate = CandidateCI{State: "pending", HeadSHA: snapshot.PR.HeadSHA}
+			switch {
+			case err == nil:
+				snapshot.Candidate = CandidateCI{State: "success", HeadSHA: record.HeadSHA, PackageDigest: record.PackageDigest, WorkflowRunID: record.WorkflowRunID}
+			case errors.Is(err, ErrCandidateFailed):
+				snapshot.Candidate.State = "failure"
+			case errors.Is(err, ErrCandidatePending):
+			default:
+				return snapshot, err
+			}
+			break
+		}
 	}
 	return snapshot, nil
 }

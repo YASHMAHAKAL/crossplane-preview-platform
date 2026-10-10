@@ -82,6 +82,30 @@ func (store Store) Status(name string, client *http.Client) (Status, error) {
 	if !ready {
 		return status, nil
 	}
+	routeName := name
+	if record.Decision.Candidate != nil {
+		candidate, err := store.CandidateState(name)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return status, nil
+			}
+			status.Phase = "degraded"
+			status.Evidence = append(status.Evidence, "candidate preview state could not be read")
+			return status, nil
+		}
+		if candidate.HeadSHA != status.HeadSHA || candidate.PackageDigest != record.Decision.Candidate.PackageDigest {
+			return status, nil
+		}
+		if candidate.State == "failed" {
+			status.Phase = "degraded"
+			status.Evidence = append(status.Evidence, candidate.Detail)
+			return status, nil
+		}
+		if candidate.State != "ready" {
+			return status, nil
+		}
+		routeName = name + "-c"
+	}
 	if client == nil {
 		client = &http.Client{Timeout: 2 * time.Second}
 	}
@@ -92,7 +116,7 @@ func (store Store) Status(name string, client *http.Client) (Status, error) {
 	if port < 1 || port > 65535 {
 		return Status{}, errors.New("invalid preview host port")
 	}
-	url := "http://" + name + ".localhost"
+	url := "http://" + routeName + ".localhost"
 	if port != 80 {
 		url += ":" + strconv.Itoa(port)
 	}

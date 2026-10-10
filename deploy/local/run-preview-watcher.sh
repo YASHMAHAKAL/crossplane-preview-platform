@@ -14,5 +14,6 @@ exec "$binary_root/watcher" \
   -config "$config_path" \
   -gitops "$gitops_root" \
   -kube-context kind-preview-platform \
+  -candidate-script "$repo_root/deploy/local/install-crossplane-candidate-preview.sh" \
   -preview-port 8088 \
   -health-file "$state_root/watcher-health.json"

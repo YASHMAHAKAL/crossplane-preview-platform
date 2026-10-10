@@ -12,6 +12,7 @@ import (
 	"github.com/crossplane/function-sdk-go/response"
 )
 
+// RunFunction is packaged from this PR head for the isolated candidate gate.
 func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) (*fnv1.RunFunctionResponse, error) {
 	rsp := response.To(req, response.DefaultTTL)
 	input := req.GetInput().AsMap()

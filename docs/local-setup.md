@@ -66,6 +66,12 @@ If you supplied `MCP_TOKEN` or `PREVIEW_MCP_TOKEN` yourself, export that exact v
 
 The setup and verification commands do **not** open or close PRs. A fresh-machine install path was not exercised during the 2026-10-08 implementation because the existing cluster was retained; the idempotent bootstrap, portal preparation/start, authenticated catalog check, and control-plane gate passed on that cluster. The previous real PR trials prove both preview modes and cleanup. Someone without access to the private GitOps repository can run the offline `make verify` and render checks, but cannot run this owner-specific end-to-end GitHub demo until they provide their own GitOps repository and adjust the hardcoded repository configuration.
 
+## Check Crossplane candidate isolation
+
+Run `deploy/local/verify-crossplane-isolation.sh` while the host platform is healthy and no other isolation gate is running. It creates a temporary `crossplane-candidate-spike` host namespace and vCluster OSS 0.36.0, installs Crossplane 2.4.0 and the released Function **inside** the virtual API, then applies this checkout's XRD and Compositions. It verifies package health and XRD establishment and checks that the host Function package reference did not change. The script removes its vCluster and host namespace on exit, including a failed run; if cleanup cannot finish it reports the remaining namespace. The first experimental XR fixture exposed a fresh-control-plane reconciliation issue: its namespaced resources were attempted before their namespace existed. This gate therefore does not claim successful live XR reconciliation.
+
+To test a Function candidate that is already published at an immutable OCI digest, pass that package reference as the first argument. Only do this for trusted candidate packages; the Function runs code in the local cluster's shared nodes. The current script does **not** build a package from a PR head, verify the package provenance, reconcile an XR, run the vCluster Composition, or alter evaluator policy. Crossplane source changes remain rejected until an exact-head candidate build and end-to-end PR lifecycle are implemented and verified.
+
 Use the [short demo guide](demo.md) when presenting the PR-driven namespace path, status UI, policy decision, and cleanup.
 
 ## Stop and clean up

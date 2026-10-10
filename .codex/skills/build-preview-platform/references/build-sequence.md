@@ -5,7 +5,7 @@
 1. Verified: real Incident Tracker app file changes from trusted source PRs select namespace automatically; `preview.request.json` has no authority.
 2. Verified: the bounded `deploy/incident-tracker/preview.json` diff selects namespace, with live replicas/resources, rollout capacity, and close cleanup.
 3. Verified: a real IncidentPolicy severity enum extension selected vCluster; PR #19 proved the changed CRD and mixed deployment settings inside its virtual API, host isolation, and close cleanup.
-4. Add exact-head candidate builds and content-aware evaluation for supported Crossplane source changes and any further deployment kinds. Reject host-impacting edits that cannot be safely tested.
+4. The disposable vCluster gate now verifies that separate Crossplane 2.4 and Function package installations leave the host Function unchanged. Add exact-head candidate builds and a live isolated XR reconciliation test before content-aware evaluation supports Crossplane source changes. Reject host-impacting edits that cannot be safely tested.
 5. Add Backstage templates that propose real source file changes and open ordinary PRs, then show local cluster resources with scoped access. Keep catalog/status available to Codex MCP.
 
 The original sequence below describes how the initial request-template prototype was built. It is historical and must not reintroduce manual preview-mode selection.

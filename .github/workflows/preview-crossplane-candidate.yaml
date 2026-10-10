@@ -1,0 +1,129 @@
+name: Preview Crossplane candidate
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'platform/crossplane/function/**'
+      - 'platform/crossplane/xrd.yaml'
+      - 'platform/crossplane/compositions/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact source head
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: platform/crossplane/function/go.mod
+          cache: false
+      - name: Test Function
+        working-directory: platform/crossplane/function
+        run: GOFLAGS=-tags=http2legacy go test ./...
+      - uses: docker/setup-buildx-action@v3
+      - name: Build candidate Function runtime
+        run: |
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "function-preview-runtime:head-${GITHUB_SHA}" \
+            platform/crossplane/function
+      - name: Install checksum-verified Crossplane CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o /tmp/crossplane-cli.tar.gz \
+            https://cli.crossplane.io/stable/v2.5.0/bundle/linux_amd64/crossplane-cli.tar.gz
+          mkdir -p /tmp/crossplane-cli
+          tar -xzf /tmp/crossplane-cli.tar.gz -C /tmp/crossplane-cli
+          expected="$(cat /tmp/crossplane-cli/crossplane.sha256)"
+          actual="$(sha256sum /tmp/crossplane-cli/crossplane | cut -d ' ' -f 1)"
+          test "$actual" = "$expected"
+          echo /tmp/crossplane-cli >> "$GITHUB_PATH"
+      - name: Build candidate package
+        working-directory: platform/crossplane/function
+        run: |
+          crossplane xpkg build \
+            --package-root=package \
+            --embed-runtime-image="function-preview-runtime:head-${GITHUB_SHA}" \
+            --package-file=/tmp/function-preview-candidate.xpkg
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish and resolve immutable package
+        id: package
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner=${OWNER,,}
+          tag="ghcr.io/${owner}/function-preview-resources:v0.0.0-sha-${GITHUB_SHA}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          crossplane xpkg push \
+            --package-files=/tmp/function-preview-candidate.xpkg \
+            --oci-annotation="org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --oci-annotation="org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "$tag"
+          digest=$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}')
+          [[ $digest =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "reference=ghcr.io/${owner}/function-preview-resources@${digest}" >> "$GITHUB_OUTPUT"
+      - name: Render both Compositions with the candidate package
+        env:
+          PACKAGE_REF: ${{ steps.package.outputs.reference }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/candidate-functions.yaml <<EOF
+          apiVersion: pkg.crossplane.io/v1
+          kind: Function
+          metadata:
+            name: function-preview-resources
+          spec:
+            package: ${PACKAGE_REF}
+          EOF
+          crossplane composition render tests/render/namespace-xr.json \
+            platform/crossplane/compositions/namespace.yaml /tmp/candidate-functions.yaml \
+            --crossplane-version=v2.4.0 --xrd=platform/crossplane/xrd.yaml \
+            > /tmp/candidate-namespace-render.yaml
+          crossplane composition render tests/render/vcluster-xr.json \
+            platform/crossplane/compositions/vcluster.yaml /tmp/candidate-functions.yaml \
+            --crossplane-version=v2.4.0 --xrd=platform/crossplane/xrd.yaml \
+            > /tmp/candidate-vcluster-render.yaml
+          for kind in Namespace ResourceQuota Deployment Service Ingress; do
+            grep -q "^kind: ${kind}$" /tmp/candidate-namespace-render.yaml
+          done
+          grep -q '^kind: Namespace$' /tmp/candidate-vcluster-render.yaml
+          grep -q '^kind: Release$' /tmp/candidate-vcluster-render.yaml
+      - name: Record candidate package and exact source head
+        env:
+          HEAD_SHA: ${{ github.sha }}
+          PACKAGE_REF: ${{ steps.package.outputs.reference }}
+          PACKAGE_TAG: ${{ steps.package.outputs.tag }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          record = {
+              "headSHA": os.environ["HEAD_SHA"],
+              "packageDigest": os.environ["PACKAGE_REF"],
+              "packageTag": os.environ["PACKAGE_TAG"],
+              "workflowRunID": int(os.environ["RUN_ID"]),
+          }
+          with open("crossplane-candidate-ci.json", "w", encoding="utf-8") as output:
+              json.dump(record, output)
+              output.write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crossplane-candidate-ci-${{ github.sha }}
+          path: crossplane-candidate-ci.json
+          if-no-files-found: error
+          retention-days: 14

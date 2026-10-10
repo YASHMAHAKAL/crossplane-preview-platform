@@ -272,12 +272,16 @@ func (reader GitHubReader) fillCI(ctx context.Context, repo string, snapshot *Sn
 }
 
 func artifactRecord(data []byte, target any) error {
+	return artifactJSON(data, "preview-ci.json", target)
+}
+
+func artifactJSON(data []byte, filename string, target any) error {
 	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return err
 	}
 	for _, file := range archive.File {
-		if file.Name != "preview-ci.json" || file.UncompressedSize64 > 65536 {
+		if file.Name != filename || file.UncompressedSize64 > 65536 {
 			continue
 		}
 		body, err := file.Open()
@@ -294,5 +298,5 @@ func artifactRecord(data []byte, target any) error {
 		}
 		return json.Unmarshal(contents, target)
 	}
-	return errors.New("CI artifact missing preview-ci.json")
+	return fmt.Errorf("CI artifact missing %s", filename)
 }

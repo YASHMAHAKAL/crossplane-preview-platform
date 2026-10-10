@@ -4,6 +4,7 @@ set -euo pipefail
 # Exercise a Crossplane package and Composition in a disposable virtual API.
 # The package reference can point at a candidate built from a PR's exact head.
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+source_root=${PREVIEW_CANDIDATE_SOURCE_DIR:-$repo_root}
 context=kind-preview-platform
 namespace=crossplane-candidate-spike
 release=crossplane-candidate-vc
@@ -23,6 +24,8 @@ fi
 for binary in base64 helm kubectl python3; do
   command -v "$binary" >/dev/null || fail "install $binary"
 done
+[[ -f $source_root/platform/crossplane/xrd.yaml && -f $source_root/platform/crossplane/compositions/namespace.yaml && -f $source_root/platform/crossplane/compositions/vcluster.yaml ]] \
+  || fail 'candidate source is missing its XRD or Compositions'
 host --request-timeout=5s get node >/dev/null || fail "$context is unavailable"
 if host --request-timeout=5s get namespace "$namespace" >/dev/null 2>&1; then
   fail "$namespace already exists; inspect and remove it before starting this gate"
@@ -118,8 +121,8 @@ spec:
 EOF
 guest wait --for=condition=Healthy function.pkg.crossplane.io/function-preview-resources --timeout=5m >/dev/null
 guest apply -f "$repo_root/platform/crossplane/rbac/composed-resources.yaml" \
-  -f "$repo_root/platform/crossplane/xrd.yaml" \
-  -f "$repo_root/platform/crossplane/compositions/" >/dev/null
+  -f "$source_root/platform/crossplane/xrd.yaml" \
+  -f "$source_root/platform/crossplane/compositions/" >/dev/null
 guest wait --for=condition=Established xrd/previewenvironments.preview.platform.example.org --timeout=2m >/dev/null
 
 note 'waiting for virtual Crossplane RBAC aggregation'

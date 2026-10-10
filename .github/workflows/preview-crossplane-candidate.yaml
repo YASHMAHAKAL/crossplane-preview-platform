@@ -7,8 +7,6 @@ on:
       - 'platform/crossplane/function/**'
       - 'platform/crossplane/xrd.yaml'
       - 'platform/crossplane/compositions/**'
-  workflow_dispatch:
-
 permissions:
   contents: read
   packages: write
@@ -97,12 +95,12 @@ jobs:
           EOF
           crossplane composition render tests/render/namespace-xr.json \
             platform/crossplane/compositions/namespace.yaml /tmp/candidate-functions.yaml \
-            --crossplane-version=v2.4.0 --crossplane-image="$controller_image" \
+            --crossplane-image="$controller_image" \
             --xrd=platform/crossplane/xrd.yaml \
             > /tmp/candidate-namespace-render.yaml
           crossplane composition render tests/render/vcluster-xr.json \
             platform/crossplane/compositions/vcluster.yaml /tmp/candidate-functions.yaml \
-            --crossplane-version=v2.4.0 --crossplane-image="$controller_image" \
+            --crossplane-image="$controller_image" \
             --xrd=platform/crossplane/xrd.yaml \
             > /tmp/candidate-vcluster-render.yaml
           for kind in Namespace ResourceQuota Deployment Service Ingress; do

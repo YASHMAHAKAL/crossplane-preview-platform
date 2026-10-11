@@ -1,6 +1,6 @@
 # Crossplane source candidate gate
 
-This manual gate builds on the same exact-head candidate workflow used by automatic Go Function previews. It installs a candidate package in a disposable vCluster without changing the host Crossplane control plane. The automatic path supports changed Go files directly under `platform/crossplane/function/`; XRD, Composition, Dockerfile, and dependency changes still fail closed. See [the live Function preview verification](pr-driven-crossplane-function-preview-verification.md) for the automatic path.
+This manual gate builds on the same exact-head candidate workflow used by automatic Go Function previews. It installs a candidate package in a disposable vCluster without changing the host Crossplane control plane. The automatic path supports changed Go files directly under `platform/crossplane/function/` and the bounded namespace Composition pod quota edit; XRD, other Composition, Dockerfile, and dependency changes still fail closed. See the [live Function](pr-driven-crossplane-function-preview-verification.md) and [Composition](pr-driven-composition-preview.md) verification records for the automatic paths.
 
 ## Supported candidate source paths
 

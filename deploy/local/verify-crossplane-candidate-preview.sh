@@ -18,9 +18,10 @@ read -r head url < <(python3 -c '
 import json,sys
 s=json.load(sys.stdin)
 assert s["phase"]=="ready" and s["mode"]=="vcluster"
-assert s["reasonCodes"][0]=="crossplane-function-change"
+reason="crossplane-composition-change" if sys.argv[1]=="--expect-pod-budget-5" else "crossplane-function-change"
+assert s["reasonCodes"][0]==reason
 print(s["headSHA"],s["url"])
-' <<< "$status")
+' "${2:-}" <<< "$status")
 [[ $url == "http://$child.localhost:8088" ]] || { echo "wrong candidate URL: $url" >&2; exit 1; }
 curl -fsS "$url/healthz" >/dev/null
 package=$(host get previewenvironment "$name" -o jsonpath='{.metadata.annotations.preview\.platform\.example\.org/candidate-package}')
@@ -92,6 +93,8 @@ if [[ ${2:-} == --expect-pod-budget-5 ]]; then
   budget=$(guest get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
   quota=$(guest -n "$child" get resourcequota/preview-quota -o jsonpath='{.spec.hard.pods}')
   [[ $budget == 5 && $quota == 5 ]] || { echo "candidate Composition budget=$budget quota=$quota, expected 5" >&2; exit 1; }
+  host_budget=$(host get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
+  [[ $host_budget != 5 ]] || { echo 'host Composition was changed to the candidate pod budget' >&2; exit 1; }
 fi
 if host get namespace "$child" >/dev/null 2>&1; then
   echo 'candidate child namespace leaked to host API' >&2

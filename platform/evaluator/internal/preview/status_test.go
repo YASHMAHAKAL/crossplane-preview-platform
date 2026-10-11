@@ -32,7 +32,7 @@ func TestStatusOnlySurfacesURLAfterHealth(t *testing.T) {
 		t.Fatalf("got %+v, %v", status, err)
 	}
 	healthy := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Host != name+".localhost:8088" || req.URL.Path != "/healthz" {
+		if req.URL.Host != "127.0.0.1:8088" || req.Host != name+".localhost" || req.URL.Path != "/healthz" {
 			t.Fatalf("unexpected probe: %s", req.URL)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
@@ -74,7 +74,7 @@ func TestCandidateURLRequiresCurrentVirtualInstall(t *testing.T) {
 	}
 	name, _ := PreviewName(config.Service, snapshot.PR.Number)
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Host != name+"-c.localhost:8088" {
+		if req.URL.Host != "127.0.0.1:8088" || req.Host != name+"-c.localhost" {
 			t.Fatalf("candidate status probed baseline route: %s", req.URL)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil

@@ -1,6 +1,6 @@
 # Crossplane source candidate gate
 
-The source PR still triggers the platform automatically. This gate prepares the next policy expansion: it builds and tests a candidate Function without installing PR code in the host Crossplane control plane. The evaluator currently rejects Crossplane source edits, so a candidate CI result alone does not create a PR preview.
+This manual gate builds on the same exact-head candidate workflow used by automatic Go Function previews. It installs a candidate package in a disposable vCluster without changing the host Crossplane control plane. The automatic path supports changed Go files directly under `platform/crossplane/function/`; XRD, Composition, Dockerfile, and dependency changes still fail closed. See [the live Function preview verification](pr-driven-crossplane-function-preview-verification.md) for the automatic path.
 
 ## Supported candidate source paths
 
@@ -19,7 +19,7 @@ go run ./cmd/candidate-gate -pr <PR number>
 
 The Go reader checks that the PR is open, same-repository, and authored by an allowlisted user. It selects a successful `push` run for the **current** PR head, checks the artifact's SHA, run ID, tag, and digest repository, and verifies that the tag still resolves to the recorded digest. It clones the PR branch and compares its checked-out commit with the recorded head SHA. The trusted local gate then installs the digest and the candidate XRD and Compositions inside a disposable vCluster, applies the trusted namespace XR fixture, checks composed resources and their deletion, and checks that the host Function and API did not receive the fixture. It rechecks the PR and artifact after the run so a head update cannot be reported as a current-head success.
 
-The local gate retains trusted RBAC and XR fixture files from this checkout. It tests whether candidate code satisfies the current namespace contract. The fixture's fake app image means `Synced=True` and resource creation are checked; workload readiness and a preview URL are not. The vCluster Composition is rendered in CI but is not live-reconciled by this gate. A separate policy and GitOps phase is required before Crossplane source edits can produce automatic PR previews.
+The local gate retains trusted RBAC and XR fixture files from this checkout. It tests whether candidate code satisfies the current namespace contract. The fixture's fake app image means `Synced=True` and resource creation are checked; workload readiness and a preview URL are not. The candidate's vCluster Composition is rendered in CI but is not live-reconciled by this gate. The automatic Function path uses a trusted host vCluster Composition and candidate namespace Composition inside the virtual API.
 
 ## Verified run
 

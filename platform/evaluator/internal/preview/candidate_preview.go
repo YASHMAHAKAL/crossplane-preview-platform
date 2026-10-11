@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type CandidatePreviewState struct {
@@ -99,7 +101,21 @@ func (installer ShellCandidateInstaller) Ensure(ctx context.Context, store Store
 	old, err := store.CandidateState(name)
 	if err == nil && old.State == "ready" && old.HeadSHA == snapshot.PR.HeadSHA &&
 		old.PackageDigest == result.Candidate.PackageDigest && old.HostUID == uid {
-		return nil
+		port := store.PreviewPort
+		if port == 0 {
+			port = 80
+		}
+		client := &http.Client{Timeout: 2 * time.Second}
+		request, requestErr := previewRouteRequest(ctx, name+"-c", port)
+		if requestErr == nil {
+			response, probeErr := client.Do(request)
+			if probeErr == nil {
+				response.Body.Close()
+				if response.StatusCode == http.StatusOK {
+					return nil
+				}
+			}
+		}
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err

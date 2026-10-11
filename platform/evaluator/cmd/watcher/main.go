@@ -42,7 +42,7 @@ func main() {
 		log.Fatal("GITHUB_TOKEN is required")
 	}
 	reader := preview.GitHubReader{Client: &http.Client{Timeout: 30 * time.Second}, Token: token}
-	store := preview.Store{Root: *gitopsRoot}
+	store := preview.Store{Root: *gitopsRoot, PreviewPort: *previewPort}
 	installer := &preview.ShellCandidateInstaller{ScriptPath: *candidateScript, KubeContext: *kubeContext, Reader: reader}
 	observer := preview.KubectlCleanupObserver{Context: *kubeContext, PreviewPort: *previewPort}
 	heartbeat := preview.WatcherHeartbeat{}

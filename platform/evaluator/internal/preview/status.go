@@ -120,7 +120,11 @@ func (store Store) Status(name string, client *http.Client) (Status, error) {
 	if port != 80 {
 		url += ":" + strconv.Itoa(port)
 	}
-	response, err := client.Get(url + "/healthz")
+	request, err := previewRouteRequest(context.Background(), routeName, port)
+	if err != nil {
+		return Status{}, err
+	}
+	response, err := client.Do(request)
 	if err == nil {
 		response.Body.Close()
 		if response.StatusCode == http.StatusOK {

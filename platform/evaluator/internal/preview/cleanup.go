@@ -92,8 +92,7 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 		if len(routeName) > 63 {
 			continue
 		}
-		url := fmt.Sprintf("http://%s.localhost:%d/healthz", routeName, observer.PreviewPort)
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		request, err := previewRouteRequest(ctx, routeName, observer.PreviewPort)
 		if err != nil {
 			return nil, err
 		}

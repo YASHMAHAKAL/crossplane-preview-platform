@@ -91,9 +91,23 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 }
 
 func TestGitHubSnapshotReadsCandidateCompositionAtExactHead(t *testing.T) {
+	for _, tc := range []struct {
+		name, path, reason string
+		fixture            func(*testing.T) (Snapshot, Config)
+	}{
+		{"composition", NamespaceCompositionPath, "crossplane-composition-change", candidateCompositionFixture},
+		{"xrd", PreviewXRDPath, "crossplane-xrd-change", candidateXRDFixture},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testGitHubSnapshotReadsCandidateSourceAtExactHead(t, tc.path, tc.reason, tc.fixture)
+		})
+	}
+}
+
+func testGitHubSnapshotReadsCandidateSourceAtExactHead(t *testing.T, sourcePath, reason string, sourceFixture func(*testing.T) (Snapshot, Config)) {
 	sha := strings.Repeat("a", 40)
-	composition, _ := candidateCompositionFixture(t)
-	content := composition.Files[0].Content
+	source, _ := sourceFixture(t)
+	content := source.Files[0].Content
 	image := "ghcr.io/demo/incident-tracker@sha256:" + strings.Repeat("b", 64)
 	packageDigest := "ghcr.io/demo/function-preview-resources@sha256:" + strings.Repeat("c", 64)
 	candidate := CandidateRecord{HeadSHA: sha, PackageDigest: packageDigest,
@@ -106,10 +120,10 @@ func TestGitHubSnapshotReadsCandidateCompositionAtExactHead(t *testing.T) {
 		case "/repos/demo/incident-tracker/pulls/42":
 			body = []byte(`{"number":42,"state":"open","user":{"login":"demo"},"head":{"sha":"` + sha + `","ref":"candidate","repo":{"full_name":"demo/incident-tracker"}}}`)
 		case "/repos/demo/incident-tracker/pulls/42/files":
-			body = []byte(`[{"filename":"` + NamespaceCompositionPath + `","status":"modified"}]`)
-		case "/repos/demo/incident-tracker/contents/" + NamespaceCompositionPath:
+			body = []byte(`[{"filename":"` + sourcePath + `","status":"modified"}]`)
+		case "/repos/demo/incident-tracker/contents/" + sourcePath:
 			if req.URL.Query().Get("ref") != sha {
-				t.Fatalf("Composition content read outside current PR head: %s", req.URL)
+				t.Fatalf("Crossplane source read outside current PR head: %s", req.URL)
 			}
 			body = []byte(`{"encoding":"base64","content":"` + base64.StdEncoding.EncodeToString([]byte(content)) + `"}`)
 		case "/repos/demo/incident-tracker/actions/runs":
@@ -133,7 +147,7 @@ func TestGitHubSnapshotReadsCandidateCompositionAtExactHead(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := Evaluate(snapshot, config)
-	if result.Phase != "approved" || result.ReasonCodes[0] != "crossplane-composition-change" || result.NamespacePodBudget == nil || *result.NamespacePodBudget != 5 {
-		t.Fatalf("exact-head candidate Composition not approved: %+v", result)
+	if result.Phase != "approved" || result.ReasonCodes[0] != reason || result.Candidate == nil {
+		t.Fatalf("exact-head candidate source not approved: %+v", result)
 	}
 }

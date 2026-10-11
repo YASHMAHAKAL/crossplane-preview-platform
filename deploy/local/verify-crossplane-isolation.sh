@@ -124,6 +124,30 @@ guest apply -f "$repo_root/platform/crossplane/rbac/composed-resources.yaml" \
   -f "$source_root/platform/crossplane/xrd.yaml" \
   -f "$source_root/platform/crossplane/compositions/" >/dev/null
 guest wait --for=condition=Established xrd/previewenvironments.preview.platform.example.org --timeout=2m >/dev/null
+candidate_reason_min=$(guest get crd previewenvironments.preview.platform.example.org \
+  -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes.minItems}')
+if [[ -n $candidate_reason_min ]]; then
+  [[ $candidate_reason_min == 1 ]] || fail "unsupported candidate XRD reason code minimum: $candidate_reason_min"
+  host_reason_min=$(host get crd previewenvironments.preview.platform.example.org \
+    -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes.minItems}')
+  [[ -z $host_reason_min ]] || fail 'candidate XRD validation appeared on host API'
+  invalid_xr=$(mktemp /tmp/preview-xrd-reject.XXXXXXXX)
+  python3 - "$repo_root/tests/render/namespace-xr.json" "$invalid_xr" <<'PY'
+import json, sys
+from pathlib import Path
+data = json.loads(Path(sys.argv[1]).read_text())
+data["metadata"]["name"] += "-invalid"
+data["spec"]["decision"]["reasonCodes"] = []
+Path(sys.argv[2]).write_text(json.dumps(data) + "\n")
+PY
+  if invalid_output=$(guest create --dry-run=server --validate=false -f "$invalid_xr" 2>&1); then
+    rm -f "$invalid_xr"
+    fail 'candidate XRD admitted an empty reason code list'
+  fi
+  rm -f "$invalid_xr"
+  [[ $invalid_output == *reasonCodes* ]] || fail "candidate XRD rejection was inconclusive: $invalid_output"
+  note 'candidate XRD rejected an empty decision reason code list in the virtual API'
+fi
 
 note 'waiting for virtual Crossplane RBAC aggregation'
 for ((attempt=0; attempt<60; attempt++)); do

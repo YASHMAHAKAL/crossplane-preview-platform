@@ -127,3 +127,60 @@ func TestNamespaceCompositionCandidateRejectsOtherChanges(t *testing.T) {
 		})
 	}
 }
+
+func candidateXRDFixture(t *testing.T) (Snapshot, Config) {
+	t.Helper()
+	snapshot, config := candidateFixture(t)
+	baseline, err := os.ReadFile("../../../../" + PreviewXRDPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := strings.Replace(string(baseline), reasonCodesBaseline, reasonCodesCandidate, 1)
+	if changed == string(baseline) {
+		t.Fatal("XRD reasonCodes baseline field is missing")
+	}
+	snapshot.Files = []ChangedFile{{Path: PreviewXRDPath, Status: "modified", Content: changed}}
+	return snapshot, config
+}
+
+func TestBoundedXRDCandidate(t *testing.T) {
+	snapshot, config := candidateXRDFixture(t)
+	result := Evaluate(snapshot, config)
+	if result.Phase != "approved" || result.Mode != "vcluster" || result.ReasonCodes[0] != "crossplane-xrd-change" ||
+		result.XRDMinReasonCodes == nil || *result.XRDMinReasonCodes != 1 || result.Candidate == nil {
+		t.Fatalf("bounded XRD decision: %+v", result)
+	}
+	child, _, err := MakeCandidateXR(snapshot, result, config)
+	if err != nil || child["spec"].(map[string]any)["crossplane"].(map[string]any)["compositionRef"].(map[string]string)["name"] != "preview-namespace" {
+		t.Fatalf("candidate child XR: %+v %v", child, err)
+	}
+}
+
+func TestXRDCandidateRejectsOtherEdits(t *testing.T) {
+	cases := []struct{ name, before, after string }{
+		{"removed constraint", "minItems: 1", "minItems: 0"},
+		{"widened mode", "enum: [namespace, vcluster]", "enum: [namespace, vcluster, privileged]"},
+		{"extra document", "minItems: 1", "minItems: 1\n---\nkind: Secret"},
+		{"changed validation", "minimum: 1", "minimum: 0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot, config := candidateXRDFixture(t)
+			snapshot.Files[0].Content = strings.Replace(snapshot.Files[0].Content, tc.before, tc.after, 1)
+			result := Evaluate(snapshot, config)
+			if result.Phase != "rejected" || result.ReasonCodes[0] != "unsupported-crossplane-change" {
+				t.Fatalf("unsupported XRD edit accepted: %+v", result)
+			}
+		})
+	}
+	for _, status := range []string{"added", "removed"} {
+		t.Run(status, func(t *testing.T) {
+			snapshot, config := candidateXRDFixture(t)
+			snapshot.Files[0].Status = status
+			result := Evaluate(snapshot, config)
+			if result.Phase != "rejected" || result.ReasonCodes[0] != "unsupported-crossplane-change" {
+				t.Fatalf("non-modified XRD accepted: %+v", result)
+			}
+		})
+	}
+}

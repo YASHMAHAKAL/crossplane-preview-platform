@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "7"
+const PolicyVersion = "8"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -57,6 +57,8 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	crossplaneFunctionChanged := false
 	compositionChanged := false
 	var namespacePodBudget int
+	xrdChanged := false
+	var xrdMinReasonCodes int
 	evidence := []string{}
 	appChanges := []string{}
 	for _, file := range snapshot.Files {
@@ -121,6 +123,18 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 			evidence = append(evidence, fmt.Sprintf("%s:podBudget=%d", file.Path, budget))
 			continue
 		}
+		if file.Path == PreviewXRDPath {
+			if file.Status != "modified" || file.Content == "" || len(file.Content) > 65536 {
+				return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
+			}
+			minimum, err := ParsePreviewXRD(file.Content)
+			if err != nil {
+				return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path+":reason-codes-contract")
+			}
+			xrdChanged, xrdMinReasonCodes = true, minimum
+			evidence = append(evidence, fmt.Sprintf("%s:decision.reasonCodes.minItems=%d", file.Path, minimum))
+			continue
+		}
 		if strings.HasPrefix(file.Path, "platform/crossplane/") {
 			return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
 		}
@@ -129,7 +143,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		}
 		return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
 	}
-	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 && !crossplaneFunctionChanged && !compositionChanged {
+	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 && !crossplaneFunctionChanged && !compositionChanged && !xrdChanged {
 		return decision(snapshot, "skipped", "", "no-previewable-change")
 	}
 	if snapshot.ActivePreviews >= config.MaxActivePreviews {
@@ -145,7 +159,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		!strings.HasPrefix(snapshot.CI.ImageDigest, "ghcr.io/"+strings.ToLower(config.Repository)+"@sha256:") {
 		return decision(snapshot, "rejected", "", "invalid-image-digest")
 	}
-	if crossplaneFunctionChanged || compositionChanged {
+	if crossplaneFunctionChanged || compositionChanged || xrdChanged {
 		if needsVirtualCluster {
 			return decision(snapshot, "rejected", "", "unsupported-crossplane-combination")
 		}
@@ -167,12 +181,14 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	}
 	mode, reason := "namespace", "namespaced-app-change"
 	capabilities := []string{}
-	if crossplaneFunctionChanged || compositionChanged {
+	if crossplaneFunctionChanged || compositionChanged || xrdChanged {
 		mode, reason = "vcluster", "crossplane-function-change"
-		if compositionChanged {
+		if xrdChanged {
+			reason = "crossplane-xrd-change"
+		} else if compositionChanged {
 			reason = "crossplane-composition-change"
 		}
-		if crossplaneFunctionChanged && compositionChanged {
+		if (crossplaneFunctionChanged && compositionChanged) || (xrdChanged && (crossplaneFunctionChanged || compositionChanged)) {
 			reason = "crossplane-source-change"
 		}
 	} else if needsVirtualCluster {
@@ -186,12 +202,15 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	result := decision(snapshot, "approved", mode, reason, evidence...)
 	result.Capabilities = capabilities
 	result.ImageDigest = snapshot.CI.ImageDigest
-	if crossplaneFunctionChanged || compositionChanged {
+	if crossplaneFunctionChanged || compositionChanged || xrdChanged {
 		candidate := snapshot.Candidate
 		result.Candidate = &candidate
 	}
 	if compositionChanged {
 		result.NamespacePodBudget = &namespacePodBudget
+	}
+	if xrdChanged {
+		result.XRDMinReasonCodes = &xrdMinReasonCodes
 	}
 	result.Request = &snapshot.Request
 	if deploymentChanged {

@@ -4,8 +4,8 @@ set -euo pipefail
 number=${1:?PR number required}
 [[ $number =~ ^[1-9][0-9]*$ ]] || { echo 'expected a positive PR number' >&2; exit 2; }
 case ${2:-} in
-  ''|--expect-smoke-annotation|--expect-pod-budget-5) ;;
-  *) echo 'supported checks: --expect-smoke-annotation or --expect-pod-budget-5' >&2; exit 2 ;;
+  ''|--expect-smoke-annotation|--expect-pod-budget-5|--expect-xrd-reason-codes) ;;
+  *) echo 'supported checks: --expect-smoke-annotation, --expect-pod-budget-5, or --expect-xrd-reason-codes' >&2; exit 2 ;;
 esac
 name=incident-tracker-pr-$number
 child=$name-c
@@ -18,7 +18,7 @@ read -r head url < <(python3 -c '
 import json,sys
 s=json.load(sys.stdin)
 assert s["phase"]=="ready" and s["mode"]=="vcluster"
-reason="crossplane-composition-change" if sys.argv[1]=="--expect-pod-budget-5" else "crossplane-function-change"
+reason={"--expect-pod-budget-5":"crossplane-composition-change", "--expect-xrd-reason-codes":"crossplane-xrd-change"}.get(sys.argv[1],"crossplane-function-change")
 assert s["reasonCodes"][0]==reason
 print(s["headSHA"],s["url"])
 ' "${2:-}" <<< "$status")
@@ -95,6 +95,14 @@ if [[ ${2:-} == --expect-pod-budget-5 ]]; then
   [[ $budget == 5 && $quota == 5 ]] || { echo "candidate Composition budget=$budget quota=$quota, expected 5" >&2; exit 1; }
   host_budget=$(host get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
   [[ $host_budget != 5 ]] || { echo 'host Composition was changed to the candidate pod budget' >&2; exit 1; }
+fi
+if [[ ${2:-} == --expect-xrd-reason-codes ]]; then
+  guest_minimum=$(guest get crd previewenvironments.preview.platform.example.org \
+    -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes.minItems}')
+  [[ $guest_minimum == 1 ]] || { echo "guest XRD minimum=$guest_minimum, expected 1" >&2; exit 1; }
+  host_minimum=$(host get crd previewenvironments.preview.platform.example.org \
+    -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes.minItems}')
+  [[ -z $host_minimum ]] || { echo 'host XRD was changed to candidate validation' >&2; exit 1; }
 fi
 if host get namespace "$child" >/dev/null 2>&1; then
   echo 'candidate child namespace leaked to host API' >&2

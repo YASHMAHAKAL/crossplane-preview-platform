@@ -143,7 +143,14 @@ func (installer ShellCandidateInstaller) Ensure(ctx context.Context, store Store
 		}
 		podBudget = "5"
 	}
-	command := exec.CommandContext(ctx, installer.ScriptPath, name, result.Candidate.PackageDigest, temporary.Name(), snapshot.PR.HeadSHA, podBudget)
+	xrdMinReasonCodes := "0"
+	if result.XRDMinReasonCodes != nil {
+		if *result.XRDMinReasonCodes != 1 {
+			return errors.New("unsupported candidate XRD reason code minimum")
+		}
+		xrdMinReasonCodes = "1"
+	}
+	command := exec.CommandContext(ctx, installer.ScriptPath, name, result.Candidate.PackageDigest, temporary.Name(), snapshot.PR.HeadSHA, podBudget, xrdMinReasonCodes)
 	command.Env = append(os.Environ(), "PREVIEW_KUBE_CONTEXT="+installer.KubeContext)
 	output, err := command.CombinedOutput()
 	if err != nil {

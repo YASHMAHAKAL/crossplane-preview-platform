@@ -16,11 +16,13 @@ package=${2:?immutable Function package required}
 child_xr=${3:?trusted child XR JSON required}
 head=${4:?exact PR head required}
 pod_budget=${5:-4}
+xrd_min_reason_codes=${6:-0}
 
 [[ $name =~ ^[a-z][a-z0-9-]{0,62}$ ]] || exit 2
 [[ $package =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]] || exit 2
 [[ $head =~ ^[a-f0-9]{40}$ ]] || exit 2
 [[ $pod_budget == 4 || $pod_budget == 5 ]] || exit 2
+[[ $xrd_min_reason_codes == 0 || $xrd_min_reason_codes == 1 ]] || exit 2
 [[ -f $child_xr ]] || exit 2
 host() { kubectl --context "$context" "$@"; }
 guest() { kubectl --kubeconfig "$kubeconfig" "$@"; }
@@ -36,12 +38,13 @@ kubeconfig=$(mktemp /tmp/preview-candidate-guest.XXXXXXXX)
 forward_log=$(mktemp /tmp/preview-candidate-forward.XXXXXXXX)
 forward_pid=
 candidate_composition=
+candidate_xrd=
 cleanup() {
   if [[ -n $forward_pid ]]; then
     kill "$forward_pid" 2>/dev/null || true
     wait "$forward_pid" 2>/dev/null || true
   fi
-  rm -f "$kubeconfig" "$forward_log" "$candidate_composition"
+  rm -f "$kubeconfig" "$forward_log" "$candidate_composition" "$candidate_xrd"
 }
 trap cleanup EXIT
 
@@ -104,6 +107,25 @@ done
 (( attempt < 150 )) || { echo "candidate-preview: candidate Function did not become current and healthy" >&2; exit 1; }
 
 namespace_composition=$repo_root/platform/crossplane/compositions/namespace.yaml
+xrd=$repo_root/platform/crossplane/xrd.yaml
+if [[ $xrd_min_reason_codes == 1 ]]; then
+  candidate_xrd=$(mktemp /tmp/preview-candidate-xrd.XXXXXXXX)
+  python3 - "$xrd" "$candidate_xrd" <<'PY'
+from hashlib import sha256
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_bytes()
+expected = "12f21d86762271374b100df99367b3c91decab1d75b7a6d5b5dfa8acd6e08119"
+if sha256(source).hexdigest() != expected:
+    raise SystemExit("candidate-preview: trusted XRD baseline changed")
+old = b"reasonCodes:\n                      type: array\n                      items: {type: string}"
+new = b"reasonCodes:\n                      type: array\n                      minItems: 1\n                      items: {type: string}"
+if source.count(old) != 1:
+    raise SystemExit("candidate-preview: trusted XRD reasonCodes field changed")
+Path(sys.argv[2]).write_bytes(source.replace(old, new, 1))
+PY
+  xrd=$candidate_xrd
+fi
 if [[ $pod_budget == 5 ]]; then
   candidate_composition=$(mktemp /tmp/preview-candidate-composition.XXXXXXXX)
   python3 - "$namespace_composition" "$candidate_composition" <<'PY'
@@ -118,12 +140,33 @@ PY
   namespace_composition=$candidate_composition
 fi
 guest apply -f "$repo_root/platform/crossplane/rbac/composed-resources.yaml" \
-  -f "$repo_root/platform/crossplane/xrd.yaml" \
+  -f "$xrd" \
   -f "$namespace_composition" \
   -f "$repo_root/platform/crossplane/compositions/vcluster.yaml" >/dev/null
 actual_budget=$(guest get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
 [[ $actual_budget == "$pod_budget" ]] || { echo "candidate-preview: guest Composition budget mismatch" >&2; exit 1; }
 guest wait --for=condition=Established xrd/previewenvironments.preview.platform.example.org --timeout=2m >/dev/null
+if [[ $xrd_min_reason_codes == 1 ]]; then
+  actual_minimum=$(guest get crd previewenvironments.preview.platform.example.org \
+    -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes.minItems}')
+  [[ $actual_minimum == 1 ]] || { echo "candidate-preview: guest XRD reason code minimum mismatch" >&2; exit 1; }
+  invalid_xr=$(mktemp /tmp/preview-candidate-invalid-xr.XXXXXXXX)
+  python3 - "$child_xr" "$invalid_xr" <<'PY'
+import json, sys
+from pathlib import Path
+data = json.loads(Path(sys.argv[1]).read_text())
+data["metadata"]["name"] += "-invalid"
+data["spec"]["decision"]["reasonCodes"] = []
+Path(sys.argv[2]).write_text(json.dumps(data) + "\n")
+PY
+  if invalid_output=$(guest create --dry-run=server --validate=false -f "$invalid_xr" 2>&1); then
+    rm -f "$invalid_xr"
+    echo "candidate-preview: guest API accepted a decision without reason codes" >&2
+    exit 1
+  fi
+  rm -f "$invalid_xr"
+  [[ $invalid_output == *reasonCodes* ]] || { echo "candidate-preview: XRD rejection inconclusive: $invalid_output" >&2; exit 1; }
+fi
 for ((attempt=0; attempt<60; attempt++)); do
   if [[ $(guest auth can-i create namespaces --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes && \
         $(guest auth can-i create deployments.apps --namespace=default --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes ]]; then

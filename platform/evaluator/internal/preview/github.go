@@ -171,7 +171,7 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 				}
 				entry.Content = content
 			}
-			if file.Status != "removed" && ((strings.HasPrefix(entry.Path, "platform/crossplane/function/") && strings.HasSuffix(entry.Path, ".go")) || entry.Path == NamespaceCompositionPath) {
+			if file.Status != "removed" && ((strings.HasPrefix(entry.Path, "platform/crossplane/function/") && strings.HasSuffix(entry.Path, ".go")) || entry.Path == NamespaceCompositionPath || entry.Path == PreviewXRDPath) {
 				if strings.Contains(entry.Path, "..") || strings.Contains(entry.Path, "\\") {
 					return snapshot, errors.New("invalid Crossplane source path")
 				}
@@ -194,7 +194,7 @@ func (reader GitHubReader) Snapshot(ctx context.Context, config Config, number, 
 		return snapshot, err
 	}
 	for _, file := range snapshot.Files {
-		if strings.HasPrefix(file.Path, "platform/crossplane/function/") || file.Path == NamespaceCompositionPath {
+		if strings.HasPrefix(file.Path, "platform/crossplane/function/") || file.Path == NamespaceCompositionPath || file.Path == PreviewXRDPath {
 			record, err := reader.CandidateForPR(ctx, config, number)
 			snapshot.Candidate = CandidateCI{State: "pending", HeadSHA: snapshot.PR.HeadSHA}
 			switch {

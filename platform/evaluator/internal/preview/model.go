@@ -112,6 +112,7 @@ type Decision struct {
 	ImageDigest        string              `json:"imageDigest,omitempty"`
 	Candidate          *CandidateCI        `json:"candidate,omitempty"`
 	NamespacePodBudget *int                `json:"namespacePodBudget,omitempty"`
+	XRDMinReasonCodes  *int                `json:"xrdMinReasonCodes,omitempty"`
 	Request            *Request            `json:"request,omitempty"`
 	Deployment         *DeploymentSpec     `json:"deployment,omitempty"`
 	IncidentPolicy     *IncidentPolicySpec `json:"incidentPolicy,omitempty"`

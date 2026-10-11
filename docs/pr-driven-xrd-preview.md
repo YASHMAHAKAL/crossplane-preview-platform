@@ -1,0 +1,11 @@
+# Bounded XRD source preview
+
+This phase accepts one `platform/crossplane/xrd.yaml` PR edit: add `minItems: 1` to `spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.decision.properties.reasonCodes`. It requires each `PreviewEnvironment` decision to include at least one reason code. The evaluator compares the exact-head file against a pinned baseline after removing this one addition. Any other XRD edit, extra document, deletion, or new XRD is rejected.
+
+The source PR triggers the same exact-head image and candidate Function package workflows as other Crossplane changes. After both succeed, the evaluator selects a vCluster and records `crossplane-xrd-change` with the changed schema field as evidence. The trusted host XR uses the released Function and XRD to provision the vCluster. The local installer reconstructs the allowed XRD from its pinned trusted baseline and applies it only inside the virtual API, together with the candidate Function and normalized namespace child XR. It checks the guest CRD schema and verifies that the guest API rejects an otherwise valid XR with an empty `reasonCodes` list. The candidate app remains available at the `-c.localhost` URL. The host XRD is not updated.
+
+For a live PR, run `deploy/local/verify-crossplane-candidate-preview.sh <PR number> --expect-xrd-reason-codes` after its status becomes ready. The check verifies the exact-head child XR, candidate Function package, healthy app URL, guest `minItems: 1`, unchanged host CRD, and host/guest resource isolation. Closing the PR uses the existing verified cleanup path.
+
+The disposable isolation gate can also test a candidate source checkout without opening a PR: point `PREVIEW_CANDIDATE_SOURCE_DIR` at a checkout with this one XRD edit and run `deploy/local/verify-crossplane-isolation.sh` with an immutable Function package digest. That gate proves guest API validation and namespace XR reconciliation, but not GitHub CI, the watcher, the preview URL, or PR-close cleanup. A real PR run is required before claiming the complete automatic XRD path is verified.
+
+Other XRD edits and `preview-vcluster` Composition edits remain unsupported. The latter needs its own live reconciliation gate before policy can admit it.

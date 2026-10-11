@@ -131,7 +131,7 @@ func TestNamespaceCompositionCandidateRejectsOtherChanges(t *testing.T) {
 func candidateXRDFixture(t *testing.T) (Snapshot, Config) {
 	t.Helper()
 	snapshot, config := candidateFixture(t)
-	baseline, err := os.ReadFile("../../../../" + PreviewXRDPath)
+	baseline, err := os.ReadFile("testdata/xrd-baseline.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

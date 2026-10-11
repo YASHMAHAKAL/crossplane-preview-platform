@@ -136,7 +136,14 @@ func (installer ShellCandidateInstaller) Ensure(ctx context.Context, store Store
 	if err := temporary.Close(); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, installer.ScriptPath, name, result.Candidate.PackageDigest, temporary.Name(), snapshot.PR.HeadSHA)
+	podBudget := "4"
+	if result.NamespacePodBudget != nil {
+		if *result.NamespacePodBudget != 5 {
+			return errors.New("unsupported candidate Composition pod budget")
+		}
+		podBudget = "5"
+	}
+	command := exec.CommandContext(ctx, installer.ScriptPath, name, result.Candidate.PackageDigest, temporary.Name(), snapshot.PR.HeadSHA, podBudget)
 	command.Env = append(os.Environ(), "PREVIEW_KUBE_CONTEXT="+installer.KubeContext)
 	output, err := command.CombinedOutput()
 	if err != nil {

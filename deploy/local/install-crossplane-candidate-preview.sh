@@ -15,10 +15,12 @@ name=${1:?host preview name required}
 package=${2:?immutable Function package required}
 child_xr=${3:?trusted child XR JSON required}
 head=${4:?exact PR head required}
+pod_budget=${5:-4}
 
 [[ $name =~ ^[a-z][a-z0-9-]{0,62}$ ]] || exit 2
 [[ $package =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]] || exit 2
 [[ $head =~ ^[a-f0-9]{40}$ ]] || exit 2
+[[ $pod_budget == 4 || $pod_budget == 5 ]] || exit 2
 [[ -f $child_xr ]] || exit 2
 host() { kubectl --context "$context" "$@"; }
 guest() { kubectl --kubeconfig "$kubeconfig" "$@"; }
@@ -33,12 +35,13 @@ umask 077
 kubeconfig=$(mktemp /tmp/preview-candidate-guest.XXXXXXXX)
 forward_log=$(mktemp /tmp/preview-candidate-forward.XXXXXXXX)
 forward_pid=
+candidate_composition=
 cleanup() {
   if [[ -n $forward_pid ]]; then
     kill "$forward_pid" 2>/dev/null || true
     wait "$forward_pid" 2>/dev/null || true
   fi
-  rm -f "$kubeconfig" "$forward_log"
+  rm -f "$kubeconfig" "$forward_log" "$candidate_composition"
 }
 trap cleanup EXIT
 
@@ -100,9 +103,26 @@ sys.exit(0 if healthy and installed and obj.get("status",{}).get("currentIdentif
 done
 (( attempt < 150 )) || { echo "candidate-preview: candidate Function did not become current and healthy" >&2; exit 1; }
 
+namespace_composition=$repo_root/platform/crossplane/compositions/namespace.yaml
+if [[ $pod_budget == 5 ]]; then
+  candidate_composition=$(mktemp /tmp/preview-candidate-composition.XXXXXXXX)
+  python3 - "$namespace_composition" "$candidate_composition" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text()
+baseline = "        podBudget: 4\n"
+if source.count(baseline) != 1:
+    raise SystemExit("candidate-preview: trusted Composition baseline changed")
+Path(sys.argv[2]).write_text(source.replace(baseline, "        podBudget: 5\n"))
+PY
+  namespace_composition=$candidate_composition
+fi
 guest apply -f "$repo_root/platform/crossplane/rbac/composed-resources.yaml" \
   -f "$repo_root/platform/crossplane/xrd.yaml" \
-  -f "$repo_root/platform/crossplane/compositions/" >/dev/null
+  -f "$namespace_composition" \
+  -f "$repo_root/platform/crossplane/compositions/vcluster.yaml" >/dev/null
+actual_budget=$(guest get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
+[[ $actual_budget == "$pod_budget" ]] || { echo "candidate-preview: guest Composition budget mismatch" >&2; exit 1; }
 guest wait --for=condition=Established xrd/previewenvironments.preview.platform.example.org --timeout=2m >/dev/null
 for ((attempt=0; attempt<60; attempt++)); do
   if [[ $(guest auth can-i create namespaces --as=system:serviceaccount:crossplane-system:crossplane 2>/dev/null) == yes && \
@@ -135,4 +155,6 @@ sys.exit(0 if generation and head==sys.argv[1] and ready and synced else 1)
 done
 (( attempt < 150 )) || { echo "candidate-preview: child XR did not become ready at the current head" >&2; exit 1; }
 guest -n "$child_name" get deployment/incident-tracker service/incident-tracker ingress/incident-tracker >/dev/null
+actual_quota=$(guest -n "$child_name" get resourcequota/preview-quota -o jsonpath='{.spec.hard.pods}')
+[[ $actual_quota == "$pod_budget" ]] || { echo "candidate-preview: guest quota budget mismatch" >&2; exit 1; }
 echo "candidate-preview: PASS $name: candidate Function rendered ready child XR $child_name"

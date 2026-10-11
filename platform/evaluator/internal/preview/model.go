@@ -102,16 +102,17 @@ type CandidateCI struct {
 }
 
 type Decision struct {
-	PolicyVersion  string              `json:"policyVersion"`
-	Phase          string              `json:"phase"`
-	Mode           string              `json:"mode,omitempty"`
-	ReasonCodes    []string            `json:"reasonCodes"`
-	Evidence       []string            `json:"evidence"`
-	HeadSHA        string              `json:"headSHA"`
-	Capabilities   []string            `json:"capabilities,omitempty"`
-	ImageDigest    string              `json:"imageDigest,omitempty"`
-	Candidate      *CandidateCI        `json:"candidate,omitempty"`
-	Request        *Request            `json:"request,omitempty"`
-	Deployment     *DeploymentSpec     `json:"deployment,omitempty"`
-	IncidentPolicy *IncidentPolicySpec `json:"incidentPolicy,omitempty"`
+	PolicyVersion      string              `json:"policyVersion"`
+	Phase              string              `json:"phase"`
+	Mode               string              `json:"mode,omitempty"`
+	ReasonCodes        []string            `json:"reasonCodes"`
+	Evidence           []string            `json:"evidence"`
+	HeadSHA            string              `json:"headSHA"`
+	Capabilities       []string            `json:"capabilities,omitempty"`
+	ImageDigest        string              `json:"imageDigest,omitempty"`
+	Candidate          *CandidateCI        `json:"candidate,omitempty"`
+	NamespacePodBudget *int                `json:"namespacePodBudget,omitempty"`
+	Request            *Request            `json:"request,omitempty"`
+	Deployment         *DeploymentSpec     `json:"deployment,omitempty"`
+	IncidentPolicy     *IncidentPolicySpec `json:"incidentPolicy,omitempty"`
 }

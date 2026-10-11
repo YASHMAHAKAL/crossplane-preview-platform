@@ -77,3 +77,53 @@ func TestCrossplaneCandidateFailsClosed(t *testing.T) {
 		})
 	}
 }
+
+func candidateCompositionFixture(t *testing.T) (Snapshot, Config) {
+	t.Helper()
+	snapshot, config := candidateFixture(t)
+	baseline, err := os.ReadFile("../../../../platform/crossplane/compositions/namespace.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := strings.Replace(string(baseline), "podBudget: 4", "podBudget: 5", 1)
+	if changed == string(baseline) {
+		t.Fatal("namespace Composition has no bounded pod budget baseline")
+	}
+	snapshot.Files = []ChangedFile{{Path: NamespaceCompositionPath, Status: "modified", Content: changed}}
+	return snapshot, config
+}
+
+func TestNamespaceCompositionCandidateIsNormalized(t *testing.T) {
+	snapshot, config := candidateCompositionFixture(t)
+	result := Evaluate(snapshot, config)
+	if result.Phase != "approved" || result.Mode != "vcluster" || result.ReasonCodes[0] != "crossplane-composition-change" ||
+		result.NamespacePodBudget == nil || *result.NamespacePodBudget != 5 || result.Candidate == nil {
+		t.Fatalf("bounded Composition decision: %+v", result)
+	}
+	child, _, err := MakeCandidateXR(snapshot, result, config)
+	if err != nil || child["spec"].(map[string]any)["crossplane"].(map[string]any)["compositionRef"].(map[string]string)["name"] != "preview-namespace" {
+		t.Fatalf("candidate child XR: %+v %v", child, err)
+	}
+}
+
+func TestNamespaceCompositionCandidateRejectsOtherChanges(t *testing.T) {
+	cases := []struct {
+		name, before, after string
+	}{
+		{"mode", "mode: namespace", "mode: vcluster"},
+		{"function", "name: function-preview-resources", "name: arbitrary-function"},
+		{"extra field", "podBudget: 5", "podBudget: 5\n        privileged: true"},
+		{"too large budget", "podBudget: 5", "podBudget: 6"},
+		{"second document", "podBudget: 5", "podBudget: 5\n---\nkind: Secret"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot, config := candidateCompositionFixture(t)
+			snapshot.Files[0].Content = strings.Replace(snapshot.Files[0].Content, tc.before, tc.after, 1)
+			result := Evaluate(snapshot, config)
+			if result.Phase != "rejected" || result.ReasonCodes[0] != "unsupported-crossplane-change" {
+				t.Fatalf("unsupported Composition accepted: %+v", result)
+			}
+		})
+	}
+}

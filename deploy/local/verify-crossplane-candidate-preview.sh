@@ -3,6 +3,10 @@ set -euo pipefail
 
 number=${1:?PR number required}
 [[ $number =~ ^[1-9][0-9]*$ ]] || { echo 'expected a positive PR number' >&2; exit 2; }
+case ${2:-} in
+  ''|--expect-smoke-annotation|--expect-pod-budget-5) ;;
+  *) echo 'supported checks: --expect-smoke-annotation or --expect-pod-budget-5' >&2; exit 2 ;;
+esac
 name=incident-tracker-pr-$number
 child=$name-c
 context=${PREVIEW_KUBE_CONTEXT:-kind-preview-platform}
@@ -84,6 +88,11 @@ if len(sys.argv)>2 and sys.argv[2]=="--expect-smoke-annotation":
     assert annotation==expected, (annotation,expected)
 print("virtual namespace annotation:", annotation or "(none)")
 ' "$head" "${2:-}"
+if [[ ${2:-} == --expect-pod-budget-5 ]]; then
+  budget=$(guest get composition/preview-namespace -o jsonpath='{.spec.pipeline[0].input.podBudget}')
+  quota=$(guest -n "$child" get resourcequota/preview-quota -o jsonpath='{.spec.hard.pods}')
+  [[ $budget == 5 && $quota == 5 ]] || { echo "candidate Composition budget=$budget quota=$quota, expected 5" >&2; exit 1; }
+fi
 if host get namespace "$child" >/dev/null 2>&1; then
   echo 'candidate child namespace leaked to host API' >&2
   exit 1

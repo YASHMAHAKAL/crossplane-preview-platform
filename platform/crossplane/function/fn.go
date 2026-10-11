@@ -20,6 +20,15 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		response.Fatal(rsp, fmt.Errorf("composition input mode is required"))
 		return rsp, nil
 	}
+	podBudget := 4
+	if raw, exists := input["podBudget"]; exists {
+		value, ok := raw.(float64)
+		if !ok || (value != 4 && value != 5) {
+			response.Fatal(rsp, fmt.Errorf("composition input podBudget must be 4 or 5"))
+			return rsp, nil
+		}
+		podBudget = int(value)
+	}
 	observed, err := request.GetObservedCompositeResource(req)
 	if err != nil {
 		response.Fatal(rsp, fmt.Errorf("read XR: %w", err))
@@ -35,7 +44,7 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		response.Fatal(rsp, fmt.Errorf("decode XR: %w", err))
 		return rsp, nil
 	}
-	rendered, err := Render(xr, mode)
+	rendered, err := RenderWithPodBudget(xr, mode, podBudget)
 	if err != nil {
 		response.Fatal(rsp, err)
 		return rsp, nil

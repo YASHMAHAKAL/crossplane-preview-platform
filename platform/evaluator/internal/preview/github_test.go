@@ -89,3 +89,51 @@ func TestGitHubSnapshotBindsPRHeadToArtifact(t *testing.T) {
 		t.Fatalf("expected seven GitHub reads with no request-file lookup, got %v", calls)
 	}
 }
+
+func TestGitHubSnapshotReadsCandidateCompositionAtExactHead(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	composition, _ := candidateCompositionFixture(t)
+	content := composition.Files[0].Content
+	image := "ghcr.io/demo/incident-tracker@sha256:" + strings.Repeat("b", 64)
+	packageDigest := "ghcr.io/demo/function-preview-resources@sha256:" + strings.Repeat("c", 64)
+	candidate := CandidateRecord{HeadSHA: sha, PackageDigest: packageDigest,
+		PackageTag: "ghcr.io/demo/function-preview-resources:v0.0.0-sha-" + sha + "-run-20-attempt-1", WorkflowRunID: 20}
+	imageArtifact := zipRecord(t, map[string]string{"headSHA": sha, "imageDigest": image})
+	candidateArtifactData := candidateArtifact(t, candidate)
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var body []byte
+		switch req.URL.Path {
+		case "/repos/demo/incident-tracker/pulls/42":
+			body = []byte(`{"number":42,"state":"open","user":{"login":"demo"},"head":{"sha":"` + sha + `","ref":"candidate","repo":{"full_name":"demo/incident-tracker"}}}`)
+		case "/repos/demo/incident-tracker/pulls/42/files":
+			body = []byte(`[{"filename":"` + NamespaceCompositionPath + `","status":"modified"}]`)
+		case "/repos/demo/incident-tracker/contents/" + NamespaceCompositionPath:
+			if req.URL.Query().Get("ref") != sha {
+				t.Fatalf("Composition content read outside current PR head: %s", req.URL)
+			}
+			body = []byte(`{"encoding":"base64","content":"` + base64.StdEncoding.EncodeToString([]byte(content)) + `"}`)
+		case "/repos/demo/incident-tracker/actions/runs":
+			body = []byte(`{"workflow_runs":[{"id":20,"name":"Preview Crossplane candidate","event":"push","head_sha":"` + sha + `","status":"completed","conclusion":"success"},{"id":19,"name":"Preview image","event":"push","head_sha":"` + sha + `","status":"completed","conclusion":"success"}]}`)
+		case "/repos/demo/incident-tracker/actions/runs/19/artifacts":
+			body = []byte(`{"artifacts":[{"id":23,"name":"preview-ci-` + sha + `","expired":false}]}`)
+		case "/repos/demo/incident-tracker/actions/artifacts/23/zip":
+			body = imageArtifact
+		case "/repos/demo/incident-tracker/actions/runs/20/artifacts":
+			body = []byte(`{"artifacts":[{"id":24,"name":"crossplane-candidate-ci-` + sha + `","expired":false}]}`)
+		case "/repos/demo/incident-tracker/actions/artifacts/24/zip":
+			body = candidateArtifactData
+		default:
+			t.Fatalf("unexpected GitHub request %s", req.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	_, config := fixture()
+	snapshot, err := (GitHubReader{Client: client, APIBase: "https://api.github.test"}).Snapshot(context.Background(), config, 42, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := Evaluate(snapshot, config)
+	if result.Phase != "approved" || result.ReasonCodes[0] != "crossplane-composition-change" || result.NamespacePodBudget == nil || *result.NamespacePodBudget != 5 {
+		t.Fatalf("exact-head candidate Composition not approved: %+v", result)
+	}
+}

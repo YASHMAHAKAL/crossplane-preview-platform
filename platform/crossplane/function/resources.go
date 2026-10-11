@@ -83,6 +83,10 @@ func oneOf(value string, options ...string) bool {
 }
 
 func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
+	return RenderWithPodBudget(xr, mode, 4)
+}
+
+func RenderWithPodBudget(xr PreviewXR, mode string, podBudget int) ([]NamedResource, error) {
 	name := xr.Metadata.Name
 	if !nameRE.MatchString(name) || !shaRE.MatchString(xr.Spec.PR.HeadSHA) || xr.Spec.PR.Number < 1 ||
 		!imageRE.MatchString(xr.Spec.Image.Digest) || xr.Spec.Preview.Host != name+".localhost" ||
@@ -93,6 +97,9 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 	}
 	if mode != "namespace" && mode != "vcluster" {
 		return nil, errors.New("unsupported preview mode")
+	}
+	if podBudget != 4 && (mode != "namespace" || podBudget != 5) {
+		return nil, errors.New("unsupported composition pod budget")
 	}
 	if mode == "namespace" && len(xr.Spec.Capabilities) != 0 {
 		return nil, errors.New("namespace preview cannot carry cluster capabilities")
@@ -141,7 +148,7 @@ func Render(xr PreviewXR, mode string) ([]NamedResource, error) {
 		quota := NamedResource{"quota", obj(map[string]any{
 			"apiVersion": "v1", "kind": "ResourceQuota",
 			"metadata": obj(map[string]any{"name": "preview-quota", "namespace": name, "labels": labels}),
-			"spec":     obj(map[string]any{"hard": obj(map[string]any{"requests.cpu": cpu, "requests.memory": memory, "pods": "4"})}),
+			"spec":     obj(map[string]any{"hard": obj(map[string]any{"requests.cpu": cpu, "requests.memory": memory, "pods": fmt.Sprint(podBudget)})}),
 		})}
 		return []NamedResource{namespace, quota, {"deployment", app[0]}, {"service", app[1]}, {"ingress", app[2]}}, nil
 	}

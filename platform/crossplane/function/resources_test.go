@@ -53,6 +53,20 @@ func TestRenderNamespace(t *testing.T) {
 	}
 }
 
+func TestRenderCandidateCompositionPodBudget(t *testing.T) {
+	resources, err := RenderWithPodBudget(sampleXR("namespace"), "namespace", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hard := resources[1].Object["spec"].(map[string]any)["hard"].(map[string]any)
+	if hard["pods"] != "5" {
+		t.Fatalf("candidate Composition did not change quota: %#v", hard)
+	}
+	if _, err := RenderWithPodBudget(sampleXR("vcluster"), "vcluster", 5); err == nil {
+		t.Fatal("vCluster Composition accepted namespace pod budget")
+	}
+}
+
 func TestRenderVCluster(t *testing.T) {
 	xr := sampleXR("vcluster")
 	xr.Spec.Capabilities = []string{"incident-policy"}

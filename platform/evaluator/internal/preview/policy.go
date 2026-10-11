@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const PolicyVersion = "6"
+const PolicyVersion = "7"
 
 var (
 	shaPattern    = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -55,6 +55,8 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	var deployment DeploymentSpec
 	var incidentPolicy IncidentPolicySpec
 	crossplaneFunctionChanged := false
+	compositionChanged := false
+	var namespacePodBudget int
 	evidence := []string{}
 	appChanges := []string{}
 	for _, file := range snapshot.Files {
@@ -107,6 +109,18 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 			evidence = append(evidence, file.Path)
 			continue
 		}
+		if file.Path == NamespaceCompositionPath {
+			if file.Status != "modified" || file.Content == "" || len(file.Content) > 65536 {
+				return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
+			}
+			budget, err := ParseNamespaceComposition(file.Content)
+			if err != nil {
+				return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path+":pod-budget-contract")
+			}
+			compositionChanged, namespacePodBudget = true, budget
+			evidence = append(evidence, fmt.Sprintf("%s:podBudget=%d", file.Path, budget))
+			continue
+		}
 		if strings.HasPrefix(file.Path, "platform/crossplane/") {
 			return decision(snapshot, "rejected", "", "unsupported-crossplane-change", file.Path)
 		}
@@ -115,7 +129,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		}
 		return decision(snapshot, "rejected", "", "unsupported-change", file.Path)
 	}
-	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 && !crossplaneFunctionChanged {
+	if !needsVirtualCluster && !deploymentChanged && len(appChanges) == 0 && !crossplaneFunctionChanged && !compositionChanged {
 		return decision(snapshot, "skipped", "", "no-previewable-change")
 	}
 	if snapshot.ActivePreviews >= config.MaxActivePreviews {
@@ -131,7 +145,7 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 		!strings.HasPrefix(snapshot.CI.ImageDigest, "ghcr.io/"+strings.ToLower(config.Repository)+"@sha256:") {
 		return decision(snapshot, "rejected", "", "invalid-image-digest")
 	}
-	if crossplaneFunctionChanged {
+	if crossplaneFunctionChanged || compositionChanged {
 		if needsVirtualCluster {
 			return decision(snapshot, "rejected", "", "unsupported-crossplane-combination")
 		}
@@ -153,8 +167,14 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	}
 	mode, reason := "namespace", "namespaced-app-change"
 	capabilities := []string{}
-	if crossplaneFunctionChanged {
+	if crossplaneFunctionChanged || compositionChanged {
 		mode, reason = "vcluster", "crossplane-function-change"
+		if compositionChanged {
+			reason = "crossplane-composition-change"
+		}
+		if crossplaneFunctionChanged && compositionChanged {
+			reason = "crossplane-source-change"
+		}
 	} else if needsVirtualCluster {
 		mode, reason = "vcluster", "cluster-api-required"
 		capabilities = append(capabilities, "incident-policy")
@@ -166,9 +186,12 @@ func Evaluate(snapshot Snapshot, config Config) Decision {
 	result := decision(snapshot, "approved", mode, reason, evidence...)
 	result.Capabilities = capabilities
 	result.ImageDigest = snapshot.CI.ImageDigest
-	if crossplaneFunctionChanged {
+	if crossplaneFunctionChanged || compositionChanged {
 		candidate := snapshot.Candidate
 		result.Candidate = &candidate
+	}
+	if compositionChanged {
+		result.NamespacePodBudget = &namespacePodBudget
 	}
 	result.Request = &snapshot.Request
 	if deploymentChanged {

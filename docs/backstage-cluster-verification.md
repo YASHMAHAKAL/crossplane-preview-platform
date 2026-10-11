@@ -1,0 +1,11 @@
+# Backstage local cluster verification — 2026-10-11
+
+The portal was started with `deploy/local/start-portal.sh` against `kind-preview-platform`. `deploy/local/verify-platform.sh --portal` passed. Its Kubernetes API listed `kind-preview-platform`, and the published catalog loaded both the Incident Tracker Component and the Local kind preview cluster Resource. The Component's `backstage.io/kubernetes-label-selector` and cluster annotations were present.
+
+[Disposable PR #28](https://github.com/YASHMAHAKAL/crossplane-preview-platform/pull/28) was opened through the Backstage app appearance template. Its source CI passed, and the Go evaluator selected `namespace` for `app/incident-tracker/public/appearance.json` at head `0c72258728208a89eb24d3e207280de2eb4503c3`. The status API reached `ready` with `http://incident-tracker-pr-28.localhost:8088`; `/healthz` and `/appearance.json` returned HTTP 200, and the latter contained the PR's new copy and amber palette.
+
+In a headless browser at `http://localhost:3000`, guest sign-in succeeded. The Incident Tracker **Kubernetes** tab showed the local cluster card. Opening the card displayed the PR #28 `PreviewEnvironment`, Deployment, Ingress, and Service with no page errors. The authenticated Kubernetes backend returned those resources plus the ResourceQuota with no fetch errors. The Backstage MCP endpoint advertised both `kubernetes.get-kubernetes-clusters` and `kubernetes.get-kubernetes-resources-for-entity`; calling the latter for `incident-tracker` returned the same resources with no errors. The reader service account could list preview resources but could not list Secrets or create Deployments.
+
+The cluster card reported zero matching Pods because the current app Pod template only has `app=incident-tracker`, while the catalog selects `preview.platform.example.org/service=incident-tracker`. The Deployment and its other host resources are visible. This is a remaining observability improvement; the vCluster's virtual-only resources are outside the host cluster view.
+
+PR #28 was closed and its branch deleted. The watcher reported `deleted` with `pr-closed` and `cleanup-verified`, with no URL. The Argo Application, `PreviewEnvironment`, and preview namespace were absent. Backstage's resource API returned no matching objects or fetch errors after cleanup.

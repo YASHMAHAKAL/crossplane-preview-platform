@@ -24,7 +24,7 @@ All three templates were exercised as [live source PRs #25–#27](backstage-sour
 
 ## Inspect the local cluster
 
-The catalog has a **Local kind preview cluster** Resource owned by `platform-team`. The Incident Tracker Component depends on it and has a **Kubernetes** tab. Its selector matches `preview.platform.example.org/service=incident-tracker` across the configured `kind-preview-platform` cluster. While a PR preview is active, this tab shows matching Deployments, Services, Ingresses, quotas, `PreviewEnvironment` XRs, and provider-helm Releases. The PR number is in each preview resource's labels or name. The **PR Previews** page links to the tab when its selected preview is ready. A vCluster's virtual-only CRDs stay inside its own API and are not shown as host resources.
+The catalog has a **Local kind preview cluster** Resource owned by `platform-team`. The Incident Tracker Component depends on it and has a **Kubernetes** tab. Its selector matches `preview.platform.example.org/service=incident-tracker` across the configured `kind-preview-platform` cluster. Open that tab, then select the cluster card to see matching preview XRs, Deployments, Services, and Ingresses. The Kubernetes backend also returns matching quotas and provider-helm Releases. The PR number is in each preview resource's labels or name. The **PR Previews** page links to the tab when its selected preview is ready. The current app Pod template lacks the preview service label, so the cluster card shows zero matching Pods even while the Deployment is healthy. A vCluster's virtual-only CRDs stay inside its own API and are not shown as host resources.
 
 `deploy/local/bootstrap.sh` applies [the dedicated reader RBAC](../platform/backstage/kubernetes/reader.yaml). It grants cluster-wide **get/list/watch** only for the displayed resource types; it cannot read Secrets or create/update/delete workloads. Cluster-wide reads are needed because preview namespaces are created dynamically. This local guest-auth portal shares that read access among its users, so it is not a multi-tenant authorization design.
 
@@ -32,25 +32,26 @@ The catalog has a **Local kind preview cluster** Resource owned by `platform-tea
 
 Codex can call Backstage MCP's `kubernetes.get-kubernetes-clusters` and `kubernetes.get-kubernetes-resources-for-entity` after discovering the Incident Tracker Component. These actions use the same Backstage Kubernetes backend and its read-only cluster credential. They complement `preview.get-status`: use status for the evaluator's decision and ready URL, and Kubernetes resources for observed workloads.
 
+The browser tab, backend API, MCP resource action, and close cleanup were [verified with live PR #28](backstage-cluster-verification.md).
+
 ## Run locally
 
 For a repeatable setup, use the [local setup runbook](local-setup.md) and `deploy/local/start-portal.sh`; it prepares the committed Yarn dependencies and TypeScript build, reads the existing `gh` credential, creates or reuses a private MCP token, and starts the portal in the foreground. `deploy/local/verify-platform.sh --portal` then checks the authenticated catalog entries as well as the control plane.
 
-For a manual start, use Node 22 or 24, Yarn 4.13.0 from the generated portal, and a GitHub token that can create pull requests in the source repository. Keep tokens outside Git. In one terminal, start the trusted status API:
+For a manual start, use Node 22 or 24 and a GitHub token that can create pull requests in the source repository. Keep tokens outside Git. In one terminal, start the trusted status API:
 
 ```sh
 cd platform/evaluator
 go run ./cmd/status-api -gitops /path/to/preview-gitops -kube-context kind-preview-platform -preview-port 8088
 ```
 
-In another terminal, set `GITHUB_TOKEN` and a random `MCP_TOKEN`, then start the portal:
+In another terminal, run the portal launcher from the repository root. It supplies the Kubernetes connection and temporary token as well as the Backstage credentials:
 
 ```sh
-cd platform/backstage/portal
-node .yarn/releases/yarn-4.13.0.cjs install
-node .yarn/releases/yarn-4.13.0.cjs tsc
-node .yarn/releases/yarn-4.13.0.cjs start
+./deploy/local/start-portal.sh
 ```
+
+Open the UI at `http://localhost:3000` so guest sign-in uses the configured browser origin. Opening it at `127.0.0.1:3000` does not use the matching origin.
 
 The intended UI is `http://localhost:3000`, and the backend is bound to `127.0.0.1:7007`. The Incident Tracker catalog entry links to **PR Previews** and its Kubernetes tab. The portal uses a guest sign-in for this local demonstration. Its `MCP_TOKEN` is configured as a static external access token with access restricted to the MCP, catalog, Scaffolder, preview, and Kubernetes plugins. The sidebar's **PR Previews** page accepts a PR number or a PR URL. It polls the same Go status API used by the MCP status action every ten seconds and shows phase, mode, reason, evidence, source commit, expiry, live URL, and cleanup result. When ready, the displayed URL is a clickable link as well as the **Open live preview** button. The backend proxies only authenticated GET requests to the local status API at `127.0.0.1:8090`; start that API with access to the `kind-preview-platform` Kubernetes context before opening the page. It requires a current-head Ready XR and healthy route before reporting `ready`.
 

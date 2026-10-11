@@ -15,4 +15,5 @@ spec:
         apiVersion: preview.fn.platform.example.org/v1alpha1
         kind: PreviewResourcesInput
         mode: namespace
+        # Allow one additional app pod in the candidate preview.
         podBudget: 5

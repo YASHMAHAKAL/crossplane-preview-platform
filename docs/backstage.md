@@ -44,7 +44,7 @@ The intended UI is `http://localhost:3000`, and the backend is bound to `127.0.0
 
 The MCP endpoint is `http://127.0.0.1:7007/api/mcp-actions/v1`. This repository's [project Codex config](../.codex/config.toml) points to it and reads the bearer token from `PREVIEW_MCP_TOKEN`. Set that environment variable to the **same value** as Backstage's `MCP_TOKEN` before launching a new Codex session from this repository; `codex mcp list` should show `preview_backstage` enabled. The token value is never stored in Git. The configuration prompts for write actions in interactive sessions. This local verification used the signed-in account selected by `CODEX_HOME=/home/yash/.codex-account3`; the other Codex accounts were not changed.
 
-Codex discovers the service with `catalog.query-catalog-entities` and `catalog.get-catalog-entity`, then calls `preview.get-status` with a source PR number. Its current MCP allowlist exposes only these read actions. The developer may use Codex to edit source files and open a GitHub PR using normal workspace and GitHub permissions; the watcher still decides the preview from that PR.
+Codex discovers the service and template schemas with `catalog.query-catalog-entities` and `catalog.get-catalog-entity`. It can execute a source-change template through `scaffolder.execute-template`, resolve the completed task to a PR with `preview.get-request-task`, and call `preview.get-status` with that PR number. The developer may also use Codex to edit source files and open a GitHub PR using normal workspace and GitHub permissions; the watcher still decides the preview from that PR.
 
 ## Verified locally on 2026-10-07
 

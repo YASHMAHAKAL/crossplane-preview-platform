@@ -47,8 +47,8 @@ export const previewPlugin = createBackendPlugin({
         });
         actionsRegistry.register({
           name: 'get-request-task',
-          title: 'Get preview request PR',
-          description: 'Resolve a completed preview Scaffolder task ID to its GitHub PR URL and number. Poll this after scaffolder.execute-template, then use preview.get-status with the PR number.',
+          title: 'Get source PR from Scaffolder task',
+          description: 'Resolve a completed source-change Scaffolder task ID to its GitHub PR URL and number. Poll this after scaffolder.execute-template, then use preview.get-status with the PR number.',
           attributes: { readOnly: true, idempotent: true, destructive: false },
           schema: {
             input: z => z.object({ taskId: z.string().uuid() }),

@@ -13,7 +13,7 @@ A changed `deploy/incident-tracker/preview.json` selects `namespace` after stric
 
 ## Next phases
 
-- Verify the Backstage source-change templates in live PRs and keep their generated files within evaluator policy. Their outputs are ordinary PRs; the watcher remains the sole decision maker.
+- Keep the Backstage source-change templates within evaluator policy. PRs #25–#27 verified that their ordinary source diffs select namespace, namespace, and vCluster previews, then clean up after closure.
 - Show the local kind cluster and its preview resources in Backstage with scoped credentials. Keep service catalog and preview status useful from Codex MCP.
 
 ## Acceptance

@@ -20,6 +20,8 @@ Enter a unique change ID and the template's supported inputs, then submit. The o
 
 The three templates target this repository's `main` branch and require Backstage's configured GitHub token to have permission to create branches and PRs. The catalog reads template definitions from public `main`, so push template changes before checking them in the portal. Codex can discover their schemas through Backstage MCP and invoke the same Scaffolder action, or edit source directly and open a PR.
 
+All three templates were exercised as [live source PRs #25–#27](backstage-source-templates-verification.md). Their exact file diffs selected namespace, namespace, and vCluster respectively; each served a healthy preview and reached verified cleanup after closure.
+
 ## Run locally
 
 For a repeatable setup, use the [local setup runbook](local-setup.md) and `deploy/local/start-portal.sh`; it prepares the committed Yarn dependencies and TypeScript build, reads the existing `gh` credential, creates or reuses a private MCP token, and starts the portal in the foreground. `deploy/local/verify-platform.sh --portal` then checks the authenticated catalog entries as well as the control plane.

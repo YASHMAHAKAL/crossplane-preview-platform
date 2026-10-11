@@ -86,8 +86,8 @@ func candidateCompositionFixture(t *testing.T) (Snapshot, Config) {
 		t.Fatal(err)
 	}
 	changed := strings.Replace(string(baseline), "podBudget: 4", "podBudget: 5", 1)
-	if changed == string(baseline) {
-		t.Fatal("namespace Composition has no bounded pod budget baseline")
+	if strings.Count(changed, "podBudget: 5") != 1 {
+		t.Fatal("namespace Composition has no bounded pod budget fixture")
 	}
 	snapshot.Files = []ChangedFile{{Path: NamespaceCompositionPath, Status: "modified", Content: changed}}
 	return snapshot, config

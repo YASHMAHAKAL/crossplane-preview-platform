@@ -37,5 +37,30 @@ if [[ ${1:-} == --prepare-only ]]; then
   echo 'portal: dependencies and TypeScript check passed'
   exit 0
 fi
+cluster_context=kind-preview-platform
+reader_namespace=backstage-system
+reader_service_account=backstage-preview-reader
+kubectl --context "$cluster_context" -n "$reader_namespace" get serviceaccount "$reader_service_account" >/dev/null || {
+  echo 'portal: Backstage Kubernetes reader is missing; run deploy/local/bootstrap.sh first' >&2
+  exit 1
+}
+mapfile -t cluster_connection < <(kubectl config view --raw -o json | python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+cluster_name = next(item["context"]["cluster"] for item in config["contexts"] if item["name"] == "kind-preview-platform")
+cluster = next(item["cluster"] for item in config["clusters"] if item["name"] == cluster_name)
+print(cluster["server"])
+print(cluster.get("certificate-authority-data", ""))
+')
+[[ ${#cluster_connection[@]} == 2 && ${cluster_connection[0]} =~ ^https://127\.0\.0\.1:[0-9]+$ && -n ${cluster_connection[1]} ]] || {
+  echo 'portal: expected a local kind API URL and CA in kubeconfig' >&2
+  exit 1
+}
+export K8S_PREVIEW_URL=${cluster_connection[0]}
+export K8S_PREVIEW_CA_DATA=${cluster_connection[1]}
+# Kubernetes issues a bounded token. Restart the portal after this local demo
+# session to renew it; no service account credential is written to disk.
+export K8S_PREVIEW_TOKEN=$(kubectl --context "$cluster_context" -n "$reader_namespace" create token "$reader_service_account" --duration=8h)
+[[ -n $K8S_PREVIEW_TOKEN ]] || { echo 'portal: could not request the Kubernetes reader token' >&2; exit 1; }
 echo 'portal: starting Backstage on http://localhost:3000; run verify-platform.sh --portal in another terminal'
 exec node .yarn/releases/yarn-4.13.0.cjs start

@@ -89,6 +89,9 @@ k wait --for=condition=established xrd/previewenvironments.preview.platform.exam
 k apply -f "$repo_root/platform/crossplane/compositions/"
 k apply -f "$repo_root/platform/argocd/preview-appset.yaml"
 
+note 'configuring read-only Backstage access to preview resource types'
+k apply -f "$repo_root/platform/backstage/kubernetes/reader.yaml"
+
 note 'installing persistent watcher and status API services'
 "$repo_root/deploy/local/install-preview-services.sh"
 "$repo_root/deploy/local/verify-platform.sh"

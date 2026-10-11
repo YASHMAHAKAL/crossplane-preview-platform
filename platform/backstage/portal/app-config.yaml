@@ -114,6 +114,7 @@ backend:
           - plugin: catalog
           - plugin: scaffolder
           - plugin: preview
+          - plugin: kubernetes
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -138,6 +139,7 @@ backend:
       - catalog
       - scaffolder
       - preview
+      - kubernetes
   # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
 integrations:
@@ -216,6 +218,11 @@ catalog:
         - allow: [Group]
 
     - type: url
+      target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/catalog/kind-preview-platform.yaml
+      rules:
+        - allow: [Resource]
+
+    - type: url
       target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/templates/edit-incident-tracker-appearance/template.yaml
       rules:
         - allow: [Template]
@@ -241,7 +248,30 @@ catalog:
     #     - allow: [User, Group]
 
 kubernetes:
-  # see https://backstage.io/docs/features/kubernetes/configuration for kubernetes configuration options
+  frontend:
+    podDelete:
+      enabled: false
+  serviceLocatorMethod:
+    type: singleTenant
+  objectTypes: [pods, services, resourcequotas, deployments, replicasets, statefulsets, ingresses]
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - name: kind-preview-platform
+          title: Local kind preview cluster
+          url: ${K8S_PREVIEW_URL}
+          authProvider: serviceAccount
+          serviceAccountToken: ${K8S_PREVIEW_TOKEN}
+          caData: ${K8S_PREVIEW_CA_DATA}
+          skipTLSVerify: false
+          skipMetricsLookup: true
+          customResources:
+            - group: preview.platform.example.org
+              apiVersion: v1alpha1
+              plural: previewenvironments
+            - group: helm.crossplane.io
+              apiVersion: v1beta1
+              plural: releases
 
 # see https://backstage.io/docs/permissions/getting-started for more on the permission framework
 permission:
@@ -251,8 +281,8 @@ permission:
 # see https://backstage.io/docs/ai/mcp-actions for more details
 mcpActions:
   name: Preview Platform
-  description: Discover Incident Tracker and read the decision and live URL for a code pull request.
-  instructions: Inspect the Incident Tracker catalog entry, then use preview.get-status with the pull request number. Previews start automatically from supported PR changes.
+  description: Discover Incident Tracker, PR preview status, and read-only local cluster resources.
+  instructions: Inspect the Incident Tracker catalog entry, then use preview.get-status with the pull request number. For live Kubernetes objects, use kubernetes.get-kubernetes-resources-for-entity on incident-tracker. Previews start automatically from supported PR changes.
 
 preview:
   statusApiBaseUrl: http://127.0.0.1:8090

@@ -38,6 +38,16 @@ for attempt in {1..30}; do
   sleep 10
 done
 [[ "$appset_health" == Healthy ]] || fail "ApplicationSet is $appset_health; inspect its conditions and GitOps access"
+reader=system:serviceaccount:backstage-system:backstage-preview-reader
+k -n backstage-system get serviceaccount backstage-preview-reader >/dev/null || fail 'Backstage Kubernetes reader is missing'
+k auth can-i list pods --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview pods'
+k auth can-i list previewenvironments.preview.platform.example.org --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview XRs'
+if k auth can-i list secrets --all-namespaces --as="$reader" --quiet; then
+  fail 'Backstage reader unexpectedly has access to Secrets'
+fi
+if k auth can-i create deployments --all-namespaces --as="$reader" --quiet; then
+  fail 'Backstage reader unexpectedly has write access'
+fi
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 "$repo_root/deploy/local/preview-service-health.sh" >/dev/null || fail 'watcher/status API is unhealthy'
@@ -52,7 +62,7 @@ if "$portal"; then
     portal_token=$(< "$HOME/.local/state/crossplane-preview-platform/mcp-token")
   fi
   [[ -n "$portal_token" ]] || fail 'set PREVIEW_MCP_TOKEN or use the local mcp-token file for authenticated catalog checks'
-  for entity in component/default/incident-tracker; do
+  for entity in component/default/incident-tracker resource/default/kind-preview-platform; do
     catalog_code=
     for attempt in {1..12}; do
       catalog_code=$(printf 'header = "Authorization: Bearer %s"\n' "$portal_token" |
@@ -63,5 +73,8 @@ if "$portal"; then
     done
     [[ "$catalog_code" == 200 ]] || fail "Backstage catalog is unavailable for $entity (HTTP $catalog_code)"
   done
-  echo 'verify: Backstage frontend and Incident Tracker catalog are ready'
+  cluster_response=$(printf 'header = "Authorization: Bearer %s"\n' "$portal_token" |
+    curl --config - --noproxy '*' --fail --silent --show-error --max-time 10 http://127.0.0.1:7007/api/kubernetes/clusters) || fail 'Backstage Kubernetes cluster endpoint failed'
+  python3 -c 'import json,sys; clusters=json.load(sys.stdin)["items"]; assert any(cluster.get("name")=="kind-preview-platform" for cluster in clusters)' <<< "$cluster_response" || fail 'Backstage did not discover the local kind cluster'
+  echo 'verify: Backstage frontend, catalog, and local kind cluster are ready'
 fi

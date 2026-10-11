@@ -217,6 +217,7 @@ export function PreviewStatusPage() {
             <Box display="flex" flexWrap="wrap" style={{ gap: 12, marginTop: 24 }}>
               <Button href={pullUrl(prNumber)} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewIcon />} variant="outlined">Open GitHub PR</Button>
               {isReady && <Button href={status?.url ?? ''} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewIcon />} variant="contained" color="primary">Open live preview</Button>}
+              {isReady && <Button href="/catalog/default/component/incident-tracker/kubernetes" variant="outlined">Inspect cluster resources</Button>}
             </Box>
           </Paper>
 

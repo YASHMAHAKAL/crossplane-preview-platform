@@ -1,0 +1,47 @@
+# Backstage observes preview resources on the host kind cluster. The token is
+# requested at portal startup and is never stored in this repository.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backstage-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backstage-preview-reader
+  namespace: backstage-system
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-preview-reader
+rules:
+  - apiGroups: ['']
+    resources: [pods, services, resourcequotas]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - apiGroups: [preview.platform.example.org]
+    resources: [previewenvironments]
+    verbs: [get, list, watch]
+  - apiGroups: [helm.crossplane.io]
+    resources: [releases]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-preview-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-preview-reader
+subjects:
+  - kind: ServiceAccount
+    name: backstage-preview-reader
+    namespace: backstage-system

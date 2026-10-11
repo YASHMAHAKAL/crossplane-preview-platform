@@ -14,7 +14,7 @@ A changed `deploy/incident-tracker/preview.json` selects `namespace` after stric
 ## Next phases
 
 - Keep the Backstage source-change templates within evaluator policy. PRs #25–#27 verified that their ordinary source diffs select namespace, namespace, and vCluster previews, then clean up after closure.
-- Show the local kind cluster and its preview resources in Backstage with scoped credentials. Keep service catalog and preview status useful from Codex MCP.
+- Verify the local kind cluster and matching preview resources in Backstage's Kubernetes tab and Codex MCP with scoped credentials. The host view must not claim to show vCluster virtual-only CRDs.
 
 ## Acceptance
 

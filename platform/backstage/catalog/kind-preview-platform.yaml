@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: kind-preview-platform
+  title: Local kind preview cluster
+  description: Host Kubernetes cluster for evaluator-owned PR preview namespaces and vClusters.
+  tags: [kubernetes, kind, preview]
+  links:
+    - title: Incident Tracker Kubernetes resources
+      url: http://localhost:3000/catalog/default/component/incident-tracker/kubernetes
+    - title: PR previews
+      url: http://localhost:3000/previews
+spec:
+  type: kubernetes-cluster
+  owner: group:default/platform-team

@@ -197,5 +197,10 @@ document.querySelectorAll('[data-status]').forEach(button => button.addEventList
   renderIncidents();
 }));
 $('today-label').textContent = `OPERATIONS / ${new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
+api('/appearance.json').then(appearance => {
+  if (typeof appearance.headline === 'string' && appearance.headline.length <= 80) $('welcome-headline').textContent = appearance.headline;
+  if (typeof appearance.subtitle === 'string' && appearance.subtitle.length <= 160) $('welcome-copy').textContent = appearance.subtitle;
+  if (['teal', 'violet', 'amber'].includes(appearance.accent)) document.body.dataset.accent = appearance.accent;
+}).catch(() => {});
 load().catch(error => toast(error.message, true));
 api('/api/context').then(context => { $('preview-context').textContent = context.label; }).catch(() => {});

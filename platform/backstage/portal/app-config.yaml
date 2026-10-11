@@ -215,6 +215,21 @@ catalog:
       rules:
         - allow: [Group]
 
+    - type: url
+      target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/templates/edit-incident-tracker-appearance/template.yaml
+      rules:
+        - allow: [Template]
+
+    - type: url
+      target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/templates/tune-incident-tracker-deployment/template.yaml
+      rules:
+        - allow: [Template]
+
+    - type: url
+      target: https://github.com/YASHMAHAKAL/crossplane-preview-platform/blob/main/platform/backstage/templates/extend-incident-policy/template.yaml
+      rules:
+        - allow: [Template]
+
     ## Uncomment these lines to add more example data
     # - type: url
     #   target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml

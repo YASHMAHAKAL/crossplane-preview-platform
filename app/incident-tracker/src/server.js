@@ -9,6 +9,7 @@ const assets = new Map([
   ['/', ['text/html; charset=utf-8', readFileSync(join(here, '../public/index.html'))]],
   ['/app.js', ['text/javascript; charset=utf-8', readFileSync(join(here, '../public/app.js'))]],
   ['/styles.css', ['text/css; charset=utf-8', readFileSync(join(here, '../public/styles.css'))]],
+  ['/appearance.json', ['application/json; charset=utf-8', readFileSync(join(here, '../public/appearance.json'))]],
 ]);
 const statuses = new Set(['open', 'investigating', 'resolved']);
 const severities = new Set(['critical', 'high', 'medium', 'low']);

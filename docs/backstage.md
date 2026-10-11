@@ -1,10 +1,24 @@
 # Backstage UI and Codex discovery/status surface
 
-**Current workflow (Phase 1):** A developer edits Incident Tracker app files and opens a normal GitHub PR. The Go watcher starts the preview from the diff and current-head CI artifact. The Incident Tracker catalog entry links to **PR Previews**, which accepts a PR number and shows the decision and live URL. Codex MCP currently exposes catalog discovery and `preview.get-status`. The request template described in the dated verification history below has been removed from active catalog configuration; those PRs remain historical evidence. Backstage source-change templates and cluster visibility are later phases.
+**Current workflow:** A developer edits supported source files and opens a normal GitHub PR, or uses a Backstage source-change template to create that PR. The Go watcher starts the preview from the diff and current-head CI artifact. The Incident Tracker catalog entry links to **PR Previews**, which accepts a PR number and shows the decision and live URL. Codex MCP exposes catalog discovery and `preview.get-status`. The request template described in the dated verification history below has been removed from active catalog configuration; those PRs remain historical evidence. Local cluster visibility is a later phase.
 
 The local [portal](../platform/backstage/portal) was generated with `@backstage/create-app@0.9.2`. Its backend loads the Incident Tracker catalog entity, MCP Actions Backend, and the [read-only preview status action](../platform/backstage/portal/plugins/preview-backend/src/index.ts). The catalog entity is read from this repository's public `main` branch, so publish edits before checking it in the portal.
 
 The retired request template remains in the repository as a historical fixture. It previously wrote `preview.request.json` and the fixed IncidentPolicy CRD. The current evaluator ignores the request file and obtains size and TTL from trusted local config.
+
+## Create a source PR from Backstage
+
+Start the portal, open `http://localhost:3000/create`, and select one of these registered templates:
+
+| Template | Source file changed | Expected evaluator decision |
+| --- | --- | --- |
+| **Edit Incident Tracker appearance** | `app/incident-tracker/public/appearance.json` | Namespace; the welcome text and palette change in the app |
+| **Tune Incident Tracker deployment** | `deploy/incident-tracker/preview.json` | Namespace; bounded replicas and resource requests/limits change |
+| **Add critical IncidentPolicy severity** | `deploy/cluster/incident-policy.json` | vCluster; the virtual API gains the `critical` severity value |
+
+Enter a unique change ID and the template's supported inputs, then submit. The output links to the ordinary GitHub PR and to **PR Previews** for that PR. Reusing a change ID updates its template branch and PR. The evaluator reads the resulting GitHub diff and determines isolation; none of the templates has an isolation selector or writes an XR. A template may create a PR with no diff if the requested values already match `main`; change at least one value. After the PR closes or merges, the existing watcher cleans up its preview.
+
+The three templates target this repository's `main` branch and require Backstage's configured GitHub token to have permission to create branches and PRs. The catalog reads template definitions from public `main`, so push template changes before checking them in the portal. Codex can discover their schemas through Backstage MCP and invoke the same Scaffolder action, or edit source directly and open a PR.
 
 ## Run locally
 

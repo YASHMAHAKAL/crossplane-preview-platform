@@ -1,0 +1,64 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: edit-incident-tracker-appearance
+  title: Edit Incident Tracker appearance
+  description: Change the visible welcome copy and accent palette, then open a source PR.
+  tags: [incident-tracker, app, source-change]
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: App appearance change
+      required: [changeId, headline, subtitle, accent]
+      properties:
+        changeId:
+          title: Change ID
+          description: Unique short ID for this PR. Reuse it to update the same PR.
+          type: string
+          pattern: '^[a-z][a-z0-9-]{2,24}$'
+        headline:
+          title: Welcome headline
+          type: string
+          minLength: 3
+          maxLength: 80
+          pattern: "^[A-Za-z0-9 .,!?'-]+$"
+          default: Know what matters now
+        subtitle:
+          title: Welcome subtitle
+          type: string
+          minLength: 3
+          maxLength: 160
+          pattern: "^[A-Za-z0-9 .,!?'-]+$"
+          default: Follow the signal across your services.
+        accent:
+          title: Accent palette
+          type: string
+          enum: [teal, violet, amber]
+          default: violet
+  steps:
+    - id: source
+      name: Write app appearance file
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          headline: ${{ parameters.headline }}
+          subtitle: ${{ parameters.subtitle }}
+          accent: ${{ parameters.accent }}
+    - id: pullRequest
+      name: Open or update source PR
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=YASHMAHAKAL&repo=crossplane-preview-platform
+        branchName: backstage/appearance-${{ parameters.changeId }}
+        targetBranchName: main
+        title: 'App appearance: ${{ parameters.changeId }}'
+        description: 'Incident Tracker appearance change from Backstage. The Go evaluator chooses the preview from the actual PR diff.'
+        update: true
+  output:
+    links:
+      - title: Source PR
+        url: ${{ steps.pullRequest.output.remoteUrl }}
+      - title: Track PR preview
+        url: /previews?prUrl=${{ steps.pullRequest.output.remoteUrl }}

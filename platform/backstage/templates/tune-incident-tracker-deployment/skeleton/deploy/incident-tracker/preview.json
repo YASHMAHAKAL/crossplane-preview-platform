@@ -1,0 +1,11 @@
+{
+  "apiVersion": "preview.platform.example.org/v1alpha1",
+  "kind": "IncidentTrackerDeployment",
+  "spec": {
+    "replicas": ${{ values.replicas }},
+    "resources": {
+      "requests": {"cpu": "${{ values.requestCpu }}", "memory": "${{ values.requestMemory }}"},
+      "limits": {"cpu": "${{ values.limitCpu }}", "memory": "${{ values.limitMemory }}"}
+    }
+  }
+}

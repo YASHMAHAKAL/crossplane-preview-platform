@@ -42,6 +42,11 @@ test('creates, updates, and annotates an incident for the preview', async () => 
   assert.equal(listed.body.incidents[0].activity.length, 3);
   assert.deepEqual((await request(server, 'GET', '/healthz')).body, { status: 'ok' });
   assert.deepEqual((await request(server, 'GET', '/api/context')).body, { mode: 'vcluster', label: 'vCluster preview' });
+  assert.deepEqual((await request(server, 'GET', '/appearance.json')).body, {
+    headline: 'Stay ahead of the signal',
+    subtitle: 'A clear view of what needs attention across your services.',
+    accent: 'teal',
+  });
 });
 
 test('rejects invalid inputs', async () => {

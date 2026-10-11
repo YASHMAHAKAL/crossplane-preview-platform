@@ -1,6 +1,6 @@
 # Product and workflow
 
-A source PR is the only preview trigger. A developer changes app or platform files in an IDE, opens a PR, and receives a preview decision automatically. Backstage and Codex expose service discovery and the same status; neither asks the developer to choose namespace or vCluster. The local operator config supplies bounded size and TTL defaults. A future Backstage template may edit supported source files and open a normal PR, which then follows the same path.
+A source PR is the only preview trigger. A developer changes app or platform files in an IDE, opens a PR, and receives a preview decision automatically. Backstage and Codex expose service discovery and the same status; neither asks the developer to choose namespace or vCluster. The local operator config supplies bounded size and TTL defaults. Backstage templates can edit supported source files and open a normal PR, which then follows the same path.
 
 ## Current implemented slice
 
@@ -13,7 +13,7 @@ A changed `deploy/incident-tracker/preview.json` selects `namespace` after stric
 
 ## Next phases
 
-- Add Backstage templates that propose actual app or supported platform file edits as a source PR. Their outputs are ordinary PRs; the watcher remains the sole decision maker.
+- Verify the Backstage source-change templates in live PRs and keep their generated files within evaluator policy. Their outputs are ordinary PRs; the watcher remains the sole decision maker.
 - Show the local kind cluster and its preview resources in Backstage with scoped credentials. Keep service catalog and preview status useful from Codex MCP.
 
 ## Acceptance

@@ -54,6 +54,21 @@ func TestIncidentPolicySchemaEditProducesNormalizedXR(t *testing.T) {
 	}
 }
 
+func TestBackstageIncidentPolicyTemplateMatchesAllowedSchemaEdit(t *testing.T) {
+	content, err := os.ReadFile("../../../backstage/templates/extend-incident-policy/skeleton/deploy/cluster/incident-policy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, config := fixture()
+	result, err := ParseIncidentPolicy(string(content), config.AllowedCRD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.AllowCritical {
+		t.Fatal("template must add critical severity")
+	}
+}
+
 func TestIncidentPolicyRejectsOtherSchemaEdits(t *testing.T) {
 	baseline, err := os.ReadFile("../../../../" + IncidentPolicyPath)
 	if err != nil {

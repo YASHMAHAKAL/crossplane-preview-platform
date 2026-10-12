@@ -4,8 +4,12 @@ metadata:
   name: kind-preview-platform
   title: Local kind preview cluster
   description: Host Kubernetes cluster for evaluator-owned PR preview namespaces and vClusters.
+  annotations:
+    kubernetes.io/api-server: https://127.0.0.1:34433
   tags: [kubernetes, kind, preview]
   links:
+    - title: Live cluster overview
+      url: http://localhost:3000/catalog/default/resource/kind-preview-platform/cluster
     - title: Incident Tracker Kubernetes resources
       url: http://localhost:3000/catalog/default/component/incident-tracker/kubernetes
     - title: PR previews

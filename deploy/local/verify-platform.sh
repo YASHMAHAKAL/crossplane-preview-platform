@@ -41,6 +41,7 @@ done
 reader=system:serviceaccount:backstage-system:backstage-preview-reader
 k -n backstage-system get serviceaccount backstage-preview-reader >/dev/null || fail 'Backstage Kubernetes reader is missing'
 k auth can-i list pods --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview pods'
+k auth can-i list nodes --as="$reader" --quiet || fail 'Backstage reader cannot list cluster nodes'
 k auth can-i list previewenvironments.preview.platform.example.org --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview XRs'
 if k auth can-i list secrets --all-namespaces --as="$reader" --quiet; then
   fail 'Backstage reader unexpectedly has access to Secrets'

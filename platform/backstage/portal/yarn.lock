@@ -2934,7 +2934,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/plugin-catalog-react@npm:^3.2.3":
+"@backstage/plugin-catalog-react@npm:3.2.3, @backstage/plugin-catalog-react@npm:^3.2.3":
   version: 3.2.3
   resolution: "@backstage/plugin-catalog-react@npm:3.2.3"
   dependencies:
@@ -3145,6 +3145,34 @@ __metadata:
     node-fetch: "npm:^2.7.0"
     split2: "npm:^4.2.0"
   checksum: 10c0/a2d0b33bab9a2e328d683d72ab7bf3976334c9a9acb6546a41ed81d770e7713ad244a34669f05e0c2136b55ece189141578223b9003b29082279b8f255a17081
+  languageName: node
+  linkType: hard
+
+"@backstage/plugin-kubernetes-cluster@npm:0.0.41":
+  version: 0.0.41
+  resolution: "@backstage/plugin-kubernetes-cluster@npm:0.0.41"
+  dependencies:
+    "@backstage/catalog-model": "npm:^1.10.1"
+    "@backstage/core-components": "npm:^0.18.14"
+    "@backstage/core-plugin-api": "npm:^1.12.10"
+    "@backstage/plugin-catalog-react": "npm:^3.2.3"
+    "@backstage/plugin-kubernetes-common": "npm:^0.9.13"
+    "@backstage/plugin-kubernetes-react": "npm:^0.6.0"
+    "@backstage/plugin-permission-react": "npm:^0.5.5"
+    "@kubernetes-models/apimachinery": "npm:^2.0.0"
+    "@material-ui/core": "npm:^4.12.2"
+    "@material-ui/lab": "npm:4.0.0-alpha.61"
+    kubernetes-models: "npm:^4.1.0"
+    react-use: "npm:^17.2.4"
+  peerDependencies:
+    "@types/react": ^17.0.0 || ^18.0.0
+    react: ^17.0.0 || ^18.0.0
+    react-dom: ^17.0.0 || ^18.0.0
+    react-router-dom: ^6.30.2
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+  checksum: 10c0/bedf331cd8ef4720649b3282bc4289eb1f060c6647a8ff04255ad9bb75e9db4fc781b0a014cc7e41a82ff3a15479d61e38cd39fcaf29a2d82718aee9e860f72e
   languageName: node
   linkType: hard
 
@@ -13428,9 +13456,11 @@ __metadata:
     "@backstage/plugin-catalog": "npm:^2.0.9"
     "@backstage/plugin-catalog-graph": "npm:^0.6.8"
     "@backstage/plugin-catalog-import": "npm:^0.13.18"
+    "@backstage/plugin-catalog-react": "npm:3.2.3"
     "@backstage/plugin-home": "npm:^0.9.10"
     "@backstage/plugin-home-react": "npm:^0.1.42"
     "@backstage/plugin-kubernetes": "npm:^0.12.23"
+    "@backstage/plugin-kubernetes-cluster": "npm:0.0.41"
     "@backstage/plugin-notifications": "npm:^0.6.0"
     "@backstage/plugin-org": "npm:^0.7.9"
     "@backstage/plugin-scaffolder": "npm:^1.39.0"
@@ -22610,7 +22640,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kubernetes-models@npm:^4.3.1":
+"kubernetes-models@npm:^4.1.0, kubernetes-models@npm:^4.3.1":
   version: 4.5.1
   resolution: "kubernetes-models@npm:4.5.1"
   dependencies:

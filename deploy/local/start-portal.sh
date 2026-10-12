@@ -52,8 +52,8 @@ cluster = next(item["cluster"] for item in config["clusters"] if item["name"] ==
 print(cluster["server"])
 print(cluster.get("certificate-authority-data", ""))
 ')
-[[ ${#cluster_connection[@]} == 2 && ${cluster_connection[0]} =~ ^https://127\.0\.0\.1:[0-9]+$ && -n ${cluster_connection[1]} ]] || {
-  echo 'portal: expected a local kind API URL and CA in kubeconfig' >&2
+[[ ${#cluster_connection[@]} == 2 && ${cluster_connection[0]} == https://127.0.0.1:34433 && -n ${cluster_connection[1]} ]] || {
+  echo 'portal: expected the pinned kind API URL https://127.0.0.1:34433 and CA in kubeconfig' >&2
   exit 1
 }
 export K8S_PREVIEW_URL=${cluster_connection[0]}

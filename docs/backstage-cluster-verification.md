@@ -8,4 +8,6 @@ In a headless browser at `http://localhost:3000`, guest sign-in succeeded. The I
 
 The cluster card reported zero matching Pods because the current app Pod template only has `app=incident-tracker`, while the catalog selects `preview.platform.example.org/service=incident-tracker`. The Deployment and its other host resources are visible. This is a remaining observability improvement; the vCluster's virtual-only resources are outside the host cluster view.
 
+This was fixed in Function v0.1.6 and verified with [PR #29](backstage-pod-label-verification.md). The paragraph above records the state during the original PR #28 check.
+
 PR #28 was closed and its branch deleted. The watcher reported `deleted` with `pr-closed` and `cleanup-verified`, with no URL. The Argo Application, `PreviewEnvironment`, and preview namespace were absent. Backstage's resource API returned no matching objects or fetch errors after cleanup.

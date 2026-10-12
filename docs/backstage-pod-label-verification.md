@@ -1,0 +1,9 @@
+# Backstage preview Pod discovery — 2026-10-12
+
+Function v0.1.6 copies the preview service, PR number, and head SHA labels onto the Incident Tracker Deployment's Pod template in both namespace and vCluster render modes. The Deployment and Service selectors remain `app=incident-tracker`. Go render tests passed with the module's Go 1.25.10 toolchain. The [package release](https://github.com/YASHMAHAKAL/crossplane-preview-platform/actions/runs/38247873443) passed, and the local kind Function reported `Installed=True` and `Healthy=True` at `ghcr.io/yashmahakal/function-preview-resources:v0.1.6`.
+
+Backstage's appearance template opened [disposable PR #29](https://github.com/YASHMAHAKAL/crossplane-preview-platform/pull/29), changing only `app/incident-tracker/public/appearance.json`. Exact-head CI passed. The Go evaluator selected `namespace` with `namespaced-app-change`, and the status API reached `ready` at `http://incident-tracker-pr-29.localhost:8088`. The route returned HTTP 200 for `/healthz`.
+
+The live `incident-tracker-pr-29` Pod was Ready and had `preview.platform.example.org/service=incident-tracker`, `preview.platform.example.org/pr=29`, and `preview.platform.example.org/head-sha=256a01ac7d64885399bfe6f0dc09080cb0126d5b`. Backstage's authenticated Kubernetes backend returned one matching Pod in `kind-preview-platform` and no fetch errors. This confirms that the Incident Tracker Kubernetes tab's existing label selector can discover the Pod. Virtual-only vCluster Pods remain outside the host cluster view.
+
+PR #29 was closed and its branch deleted. The watcher reached `deleted` with verified cleanup. `deploy/local/verify-preview.sh 29 deleted` confirmed the Argo Application, XR, namespace, persistent volume, and route were absent. The Backstage Kubernetes API returned no matching resource groups and no fetch errors after cleanup.

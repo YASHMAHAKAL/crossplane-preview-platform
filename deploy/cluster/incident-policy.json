@@ -28,7 +28,8 @@
                     "type": "string",
                     "enum": [
                       "low",
-                      "high"
+                      "high",
+                      "critical"
                     ]
                   }
                 }

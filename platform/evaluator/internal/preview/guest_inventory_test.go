@@ -83,12 +83,16 @@ func TestGuestSummaryOmitsUnapprovedFields(t *testing.T) {
 		"spec":     map[string]any{"containers": []any{map[string]any{"image": "ghcr.io/demo/app@sha256:abc", "env": []any{map[string]any{"value": "DO-NOT-RETURN"}}}}},
 		"status":   map[string]any{"phase": "Running", "conditions": []any{map[string]any{"type": "Ready", "status": "True"}}},
 	}
-	resource := guestSummary(object)
+	resource := guestSummary(object, "Pod")
 	data, err := json.Marshal(resource)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resource.State != "Ready" || !strings.Contains(string(data), "ghcr.io/demo/app") || strings.Contains(string(data), "DO-NOT-RETURN") {
 		t.Fatalf("unsafe or incomplete guest summary: %s", data)
+	}
+	delete(object, "kind")
+	if got := guestSummary(object, "Pod"); got.Kind != "Pod" || got.State != "Ready" {
+		t.Fatalf("Kubernetes list item without kind was not classified: %+v", got)
 	}
 }

@@ -86,15 +86,19 @@ export function GuestResourcesPanel({ prNumber, headSHA }: { prNumber: number; h
     {inventory && inventory.resources.length === 0 &&
       <Typography color="textSecondary" style={{ marginTop: 16 }}>No matching resources were found for this PR commit.</Typography>}
     {inventory && inventory.resources.length > 0 && <Box style={{ overflowX: 'auto', marginTop: 18 }}>
-      <Table size="small" aria-label="Virtual cluster resources">
+      <Table size="small" aria-label="Virtual cluster resources" style={{ minWidth: 1000 }}>
         <TableHead><TableRow>
-          <TableCell>Kind</TableCell><TableCell>Name</TableCell><TableCell>Namespace</TableCell><TableCell>Status</TableCell><TableCell>Definition</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>Kind</TableCell>
+          <TableCell style={{ minWidth: 200 }}>Name</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>Namespace</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>Status</TableCell>
+          <TableCell style={{ minWidth: 390 }}>Definition</TableCell>
         </TableRow></TableHead>
         <TableBody>{inventory.resources.map(resource => <TableRow key={`${resource.kind}/${resource.namespace ?? ''}/${resource.name}`}>
-          <TableCell>{resource.kind}</TableCell>
-          <TableCell>{resource.name}</TableCell>
-          <TableCell>{resource.namespace || 'Cluster-wide'}</TableCell>
-          <TableCell>{resource.state}</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>{resource.kind}</TableCell>
+          <TableCell style={{ overflowWrap: 'anywhere' }}>{resource.name}</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>{resource.namespace || 'Cluster-wide'}</TableCell>
+          <TableCell style={{ whiteSpace: 'nowrap' }}>{resource.state}</TableCell>
           <TableCell>{resource.fields.map(field => <Typography key={field.name} variant="body2" style={{ overflowWrap: 'anywhere' }}>
             <strong>{field.name}:</strong> {field.value}
           </Typography>)}</TableCell>

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -70,6 +71,7 @@ func (store Store) GuestInventoryHandler(statusClient *http.Client, reader Guest
 		defer cancel()
 		inventory, err := reader.Read(ctx, name, status.HeadSHA)
 		if err != nil {
+			log.Printf("guest inventory %s: %v", name, err)
 			http.Error(w, "virtual cluster inventory unavailable", http.StatusServiceUnavailable)
 			return
 		}
@@ -181,7 +183,7 @@ func (reader KubectlGuestInventoryReader) Read(ctx context.Context, name, headSH
 	// The host Secret contains a virtual admin kubeconfig. Use it only for a
 	// short-lived TokenRequest; inventory GETs use the fixed read-only role.
 	tokenBytes, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", configFile.Name(), "--request-timeout=5s",
-		"-n", "default", "create", "token", "preview-observer", "--duration=5m").Output()
+		"-n", "default", "create", "token", "preview-observer", "--duration=10m").Output()
 	if err != nil || strings.TrimSpace(string(tokenBytes)) == "" {
 		return GuestInventory{}, errors.New("vCluster observer token is unavailable")
 	}
@@ -209,8 +211,13 @@ func (reader KubectlGuestInventoryReader) Read(ctx context.Context, name, headSH
 	}
 	inventory := GuestInventory{Name: name, HeadSHA: headSHA, Resources: []GuestResource{}}
 	selector := "?labelSelector=preview.platform.example.org%2Fservice%3Dincident-tracker"
-	for _, path := range []string{"/api/v1/pods", "/apis/apps/v1/deployments", "/api/v1/services", "/apis/networking.k8s.io/v1/ingresses"} {
-		object, err := read(path + selector)
+	for _, target := range []struct{ path, kind string }{
+		{"/api/v1/pods", "Pod"},
+		{"/apis/apps/v1/deployments", "Deployment"},
+		{"/api/v1/services", "Service"},
+		{"/apis/networking.k8s.io/v1/ingresses", "Ingress"},
+	} {
+		object, err := read(target.path + selector)
 		if err != nil {
 			return GuestInventory{}, err
 		}
@@ -219,7 +226,7 @@ func (reader KubectlGuestInventoryReader) Read(ctx context.Context, name, headSH
 			if !ok || stringAt(resource, "metadata", "labels", "preview.platform.example.org/head-sha") != headSHA {
 				continue
 			}
-			inventory.Resources = append(inventory.Resources, guestSummary(resource))
+			inventory.Resources = append(inventory.Resources, guestSummary(resource, target.kind))
 		}
 	}
 	crd, err := read("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/incidentpolicies.incidents.demo.local")
@@ -228,14 +235,14 @@ func (reader KubectlGuestInventoryReader) Read(ctx context.Context, name, headSH
 		return GuestInventory{}, err
 	}
 	if err == nil {
-		inventory.Resources = append(inventory.Resources, guestSummary(crd))
+		inventory.Resources = append(inventory.Resources, guestSummary(crd, "CustomResourceDefinition"))
 		policies, err := read("/apis/incidents.demo.local/v1alpha1/incidentpolicies")
 		if err != nil {
 			return GuestInventory{}, err
 		}
 		for _, item := range arrayAt(policies, "items") {
 			if resource, ok := item.(map[string]any); ok {
-				inventory.Resources = append(inventory.Resources, guestSummary(resource))
+				inventory.Resources = append(inventory.Resources, guestSummary(resource, "IncidentPolicy"))
 			}
 		}
 	}
@@ -268,8 +275,12 @@ func arrayAt(object map[string]any, keys ...string) []any {
 	return value
 }
 
-func guestSummary(object map[string]any) GuestResource {
-	resource := GuestResource{Kind: stringAt(object, "kind"), Name: stringAt(object, "metadata", "name"),
+func guestSummary(object map[string]any, fallbackKind string) GuestResource {
+	kind := stringAt(object, "kind")
+	if kind == "" {
+		kind = fallbackKind
+	}
+	resource := GuestResource{Kind: kind, Name: stringAt(object, "metadata", "name"),
 		Namespace: stringAt(object, "metadata", "namespace"), State: "Present", Fields: []GuestField{}}
 	add := func(name, value string) {
 		if value != "" {

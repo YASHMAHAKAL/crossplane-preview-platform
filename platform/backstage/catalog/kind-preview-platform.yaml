@@ -8,6 +8,8 @@ metadata:
     kubernetes.io/api-server: https://127.0.0.1:34433
   tags: [kubernetes, kind, preview]
   links:
+    - title: Browse cluster resources
+      url: http://localhost:3000/catalog/default/resource/kind-preview-platform/resources
     - title: Live cluster overview
       url: http://localhost:3000/catalog/default/resource/kind-preview-platform/cluster
     - title: Incident Tracker Kubernetes resources

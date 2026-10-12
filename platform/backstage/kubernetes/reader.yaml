@@ -18,7 +18,7 @@ metadata:
   name: backstage-preview-reader
 rules:
   - apiGroups: ['']
-    resources: [nodes, pods, services, resourcequotas]
+    resources: [namespaces, nodes, pods, services, resourcequotas]
     verbs: [get, list, watch]
   - apiGroups: [apps]
     resources: [deployments, replicasets, statefulsets]

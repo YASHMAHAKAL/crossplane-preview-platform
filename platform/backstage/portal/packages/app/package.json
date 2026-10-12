@@ -33,6 +33,7 @@
     "@backstage/plugin-home-react": "^0.1.42",
     "@backstage/plugin-kubernetes": "^0.12.23",
     "@backstage/plugin-kubernetes-cluster": "0.0.41",
+    "@backstage/plugin-kubernetes-react": "0.6.0",
     "@backstage/plugin-notifications": "^0.6.0",
     "@backstage/plugin-org": "^0.7.9",
     "@backstage/plugin-scaffolder": "^1.39.0",

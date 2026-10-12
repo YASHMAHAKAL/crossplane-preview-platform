@@ -3206,7 +3206,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/plugin-kubernetes-react@npm:^0.6.0":
+"@backstage/plugin-kubernetes-react@npm:0.6.0, @backstage/plugin-kubernetes-react@npm:^0.6.0":
   version: 0.6.0
   resolution: "@backstage/plugin-kubernetes-react@npm:0.6.0"
   dependencies:
@@ -13461,6 +13461,7 @@ __metadata:
     "@backstage/plugin-home-react": "npm:^0.1.42"
     "@backstage/plugin-kubernetes": "npm:^0.12.23"
     "@backstage/plugin-kubernetes-cluster": "npm:0.0.41"
+    "@backstage/plugin-kubernetes-react": "npm:0.6.0"
     "@backstage/plugin-notifications": "npm:^0.6.0"
     "@backstage/plugin-org": "npm:^0.7.9"
     "@backstage/plugin-scaffolder": "npm:^1.39.0"

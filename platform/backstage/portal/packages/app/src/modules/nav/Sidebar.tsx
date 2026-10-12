@@ -37,7 +37,7 @@ export const SidebarContent = NavContentBlueprint.make({
             {nav.take('page:home')}
             {nav.take('page:catalog')}
             {nav.take('page:scaffolder')}
-            <SidebarItem icon={DnsIcon} to="/catalog/default/resource/kind-preview-platform/cluster" text="Local Cluster" />
+            <SidebarItem icon={DnsIcon} to="/catalog/default/resource/kind-preview-platform/resources" text="Local Cluster" />
             <SidebarDivider />
             <SidebarScrollWrapper>
               {nav.rest({ sortBy: 'title' })}

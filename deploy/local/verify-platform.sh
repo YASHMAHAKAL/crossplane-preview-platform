@@ -41,6 +41,7 @@ done
 reader=system:serviceaccount:backstage-system:backstage-preview-reader
 k -n backstage-system get serviceaccount backstage-preview-reader >/dev/null || fail 'Backstage Kubernetes reader is missing'
 k auth can-i list pods --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview pods'
+k auth can-i list namespaces --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list namespaces'
 k auth can-i list nodes --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list cluster nodes'
 k auth can-i list previewenvironments.preview.platform.example.org --all-namespaces --as="$reader" --quiet || fail 'Backstage reader cannot list preview XRs'
 if k auth can-i list secrets --all-namespaces --as="$reader" --quiet; then
@@ -80,5 +81,10 @@ if "$portal"; then
   node_response=$(printf 'header = "Authorization: Bearer %s"\n' "$portal_token" |
     curl --config - --noproxy '*' --header 'Backstage-Kubernetes-Cluster: kind-preview-platform' --fail --silent --show-error --max-time 10 'http://127.0.0.1:7007/api/kubernetes/proxy/api/v1/nodes?limit=1') || fail 'Backstage could not read the local kind node'
   python3 -c 'import json,sys; nodes=json.load(sys.stdin); assert nodes.get("kind")=="NodeList" and nodes.get("items")' <<< "$node_response" || fail 'Backstage cluster plugin has no kind node'
-  echo 'verify: Backstage frontend, catalog, local kind cluster, and node proxy are ready'
+  for resource_path in api/v1/pods apis/apps/v1/deployments; do
+    resource_response=$(printf 'header = "Authorization: Bearer %s"\n' "$portal_token" |
+      curl --config - --noproxy '*' --header 'Backstage-Kubernetes-Cluster: kind-preview-platform' --fail --silent --show-error --max-time 10 "http://127.0.0.1:7007/api/kubernetes/proxy/$resource_path?limit=1") || fail "Backstage could not list $resource_path"
+    python3 -c 'import json,sys; resources=json.load(sys.stdin); assert isinstance(resources.get("items"),list) and resources["items"]' <<< "$resource_response" || fail "Backstage resource inventory has no $resource_path"
+  done
+  echo 'verify: Backstage frontend, catalog, local kind cluster, node, pod, and Deployment reads are ready'
 fi

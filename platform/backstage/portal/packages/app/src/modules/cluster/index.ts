@@ -1,6 +1,11 @@
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import { convertLegacyEntityContentExtension } from '@backstage/plugin-catalog-react/alpha';
+import { EntityContentBlueprint, convertLegacyEntityContentExtension } from '@backstage/plugin-catalog-react/alpha';
 import { EntityKubernetesClusterContent } from '@backstage/plugin-kubernetes-cluster';
+import { createElement } from 'react';
+import { ClusterResourcesPage } from './ClusterResourcesPage';
+
+const isClusterEntity = (entity: { kind: string; spec?: { type?: string } }) =>
+  entity.kind.toLowerCase() === 'resource' && entity.spec?.type === 'kubernetes-cluster';
 
 const clusterContent = convertLegacyEntityContentExtension(
   EntityKubernetesClusterContent,
@@ -8,12 +13,21 @@ const clusterContent = convertLegacyEntityContentExtension(
     name: 'cluster',
     path: '/cluster',
     title: 'Cluster',
-    filter: entity => entity.kind.toLowerCase() === 'resource' &&
-      entity.spec?.type === 'kubernetes-cluster',
+    filter: isClusterEntity,
   },
 );
 
+const resourcesContent = EntityContentBlueprint.make({
+  name: 'resources',
+  params: {
+    path: '/resources',
+    title: 'Resources',
+    filter: isClusterEntity,
+    loader: async () => createElement(ClusterResourcesPage),
+  },
+});
+
 export const clusterModule = createFrontendModule({
   pluginId: 'catalog',
-  extensions: [clusterContent],
+  extensions: [clusterContent, resourcesContent],
 });

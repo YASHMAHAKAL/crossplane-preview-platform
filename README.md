@@ -26,7 +26,8 @@ Backstage UI and Codex via Backstage MCP -> catalog discovery and PR status
 - [PR #19](docs/pr-driven-crd-preview-verification.md) verifies a real IncidentPolicy enum edit mixed with bounded deployment settings in vCluster: `critical` was admitted by the virtual API, the host CRD stayed absent, two app replicas were ready, and close cleanup was verified.
 - [PR #21](docs/pr-driven-crossplane-function-preview-verification.md) verified an exact-head Go Function behavior change inside a vCluster; [PR #22](docs/pr-driven-composition-preview.md) verified the bounded namespace Composition input produced a five pod guest quota. Both retained released host Crossplane resources and passed close cleanup.
 - Approved vCluster requests include a fixed, evaluator-authored installer Role and RoleBinding in trusted GitOps. Argo CD applies the grant in the preview namespace; no manual installer bootstrap is needed. A synthetic run and real Backstage UI PR #10 verified automatic grant, vCluster readiness, HTTP 200, and deletion.
-- GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.5`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
+- GitHub Actions published the healthy in-cluster Function package `ghcr.io/yashmahakal/function-preview-resources:v0.1.7`. The source repository, Function package, and Pulseboard image are public, so kind can pull them anonymously.
+- Backstage's persistent Local Cluster inventory shows selected live resource definitions on row expansion. For a ready vCluster PR, the PR Previews page shows virtual Pods, Deployment, Service, Ingress, and IncidentPolicy API status through a scoped guest observer. [PR #30](docs/backstage-vcluster-inventory-verification.md) verified both views and close cleanup; raw credentials and Secret data are excluded from the guest response.
 - The dedicated `kind-preview-platform` cluster runs Kubernetes v1.35.0, Crossplane v2.4.0, Argo CD v3.5.2, provider-helm v1.2.0, NGINX ingress, and the custom Function. [Real GitHub PRs #1–#14](docs/live-pr-verification.md) exercised exact-head CI verification, trusted GitOps publishing, both preview modes, request surfaces, updates, rejection, close and merge cleanup, and TTL recovery. PRs #3–#5 covered Backstage UI, HTTP MCP, and codex3 CLI; PR #6 proved a same-PR update and idempotent replay. PR #7 rejected an unsupported Node manifest without creating a preview. PR #8 created a vCluster from the Backstage UI and kept the IncidentPolicy CRD inside the virtual API. PR #9 removed a namespace preview after merge. PR #10 proved the Backstage status page, its task deep link, and the automatic vCluster installer grant on a real PR. PRs #11–#14 produced the reliability findings and measurements documented below. All thirteen approved previews served `/healthz` before their resources were removed after close, merge, or TTL expiry. See [compatibility and feasibility](docs/compatibility.md).
 
 ![Pulseboard desktop dashboard](docs/screenshots/pulseboard-dashboard.png)
@@ -84,12 +85,12 @@ This workspace has the dedicated `kind-preview-platform` context and a Ready nod
    helm install nginx-ingress oci://ghcr.io/nginx/charts/nginx-ingress --version 2.7.3 --namespace nginx-ingress --create-namespace --values deploy/local/nginx-ingress-values.yaml
    ```
 
-2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed; the installed tag is `function-v0.1.5`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
+2. The [Function release workflow](.github/workflows/preview-function.yaml) builds and publishes the package when a `function-v<semver>` tag is pushed; the installed tag is `function-v0.1.7`. Keep the version in [functions.yaml](platform/crossplane/functions.yaml) aligned with that tag. The equivalent local build is:
 
    ```sh
    cd platform/crossplane/function
-   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.5 .
-   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.5 --package-file=/tmp/function-preview-resources.xpkg
+   docker build --platform linux/amd64 -t function-preview-runtime:v0.1.7 .
+   crossplane xpkg build --package-root=package --embed-runtime-image=function-preview-runtime:v0.1.7 --package-file=/tmp/function-preview-resources.xpkg
    cd ../../..
    ```
 

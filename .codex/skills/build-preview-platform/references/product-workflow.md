@@ -14,7 +14,7 @@ A changed `deploy/incident-tracker/preview.json` selects `namespace` after stric
 ## Next phases
 
 - Keep the Backstage source-change templates within evaluator policy. PRs #25–#27 verified that their ordinary source diffs select namespace, namespace, and vCluster previews, then clean up after closure.
-- The local kind cluster and matching host preview resources were verified in Backstage's Kubernetes tab and Codex MCP with scoped credentials in PR #28. Function v0.1.6 adds preview labels to app Pods; PR #29 verified a matching Pod in Backstage's Kubernetes API. The host view does not show vCluster virtual-only resources.
+- The local kind cluster and matching host preview resources were verified in Backstage's Kubernetes tab and Codex MCP with scoped credentials in PR #28. Function v0.1.6 adds preview labels to app Pods; PR #29 verified a matching Pod in Backstage's Kubernetes API. Function v0.1.7 adds a scoped guest observer; PR #30 verified a separate virtual-resource panel for ready vCluster PRs and cleanup. The persistent host cluster view shows selected live definitions on row expansion but does not show virtual-only resources.
 - The first-party Backstage Kubernetes cluster plugin displays the local kind cluster's Overview, API groups, and Nodes through a persistent Resource tab. A sibling Resources tab uses the existing Kubernetes proxy to show selected cluster-wide workload and preview types even when no PR exists; the sidebar links directly to it.
 
 ## Acceptance

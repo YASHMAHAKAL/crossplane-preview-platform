@@ -66,7 +66,7 @@ Define one modern cluster-scoped XRD (for example `preview.platform.example.org/
 
 Do not place arbitrary Helm values, Kubernetes YAML, service account permissions, GitHub credentials, or secret bytes in the request or XR. Derive resource names from stable service and PR identifiers with DNS-safe normalization and collision checks. Include labels/annotations for service, PR, head SHA, managed-by, and decision revision on composed resources.
 
-Use XR conditions plus a status aggregator for observed state. Avoid writing evaluator-owned decision fields back and forth with Crossplane-owned conditions. The status API should distinguish policy rejection, CI wait/failure, reconciliation failure, app health failure, and cleanup failure. Store enough data to explain each decision after the GitOps path has been deleted.
+Use XR conditions plus a status aggregator for observed state. Avoid writing evaluator-owned decision fields back and forth with Crossplane-owned conditions. The status API should distinguish policy rejection, CI wait/failure, reconciliation failure, app health failure, and cleanup failure. Store enough data to explain each decision after the GitOps path has been deleted. For a ready vCluster PR, the local status API may return only selected guest resource summaries for the current head; it requests a short-lived token for the fixed read-only virtual ServiceAccount, never returns credentials or raw manifests, and rejects reads once cleanup starts. Backstage presents this in a per-PR panel while the persistent Kubernetes Resource remains the host cluster.
 
 ## Evaluator policy
 

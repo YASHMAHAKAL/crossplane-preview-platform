@@ -9,7 +9,7 @@ context=kind-preview-platform
 namespace=crossplane-candidate-spike
 release=crossplane-candidate-vc
 port=18443
-package=${1:-ghcr.io/yashmahakal/function-preview-resources:v0.1.5}
+package=${1:-ghcr.io/yashmahakal/function-preview-resources:v0.1.6}
 
 fail() { echo "isolation-gate: $*" >&2; exit 1; }
 note() { echo "isolation-gate: $*"; }

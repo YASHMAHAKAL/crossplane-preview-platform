@@ -1,0 +1,7 @@
+# Always-visible kind cluster in Backstage — 2026-10-12
+
+The portal uses `@backstage/plugin-kubernetes-cluster@0.0.41`, mounted as an entity content tab through `convertLegacyEntityContentExtension`. Its package dependencies match the portal's installed Backstage versions; the TypeScript check passed. The local kind API server is pinned to `https://127.0.0.1:34433`, and the cluster Resource has the matching `kubernetes.io/api-server` annotation. The Kubernetes backend still receives its eight-hour service account token only at portal startup.
+
+With no open PR and no `PreviewEnvironment` in the cluster, the browser opened `http://localhost:3000/catalog/default/resource/kind-preview-platform/cluster` after guest sign-in. The **Cluster** tab rendered **Cluster Overview** (`kind-preview-platform`, `serviceAccount`), **API Resources** (32 API groups), and **Nodes** (`preview-platform-control-plane`, Ready, Linux amd64) without page errors. The Backstage Kubernetes proxy returned one Node and the API group list using the dedicated reader service account. This confirms the cluster view stays useful when the Incident Tracker service tab has no preview objects.
+
+The reader's ClusterRole permits `get/list/watch` on Nodes and the existing preview resource types; it cannot list Secrets or mutate workloads. `deploy/local/verify-platform.sh --portal` checks catalog discovery, the configured cluster, and a live node read through Backstage. The **Local Cluster** sidebar link goes directly to this tab.

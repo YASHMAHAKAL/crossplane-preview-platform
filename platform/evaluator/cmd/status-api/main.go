@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"example.com/crossplane-preview-platform/evaluator/internal/preview"
@@ -20,7 +21,17 @@ func main() {
 		log.Fatal("-gitops, -kube-context and a valid -preview-port are required")
 	}
 	routes := http.NewServeMux()
-	routes.Handle("/api/previews/", (preview.Store{Root: *root, PreviewPort: *previewPort, Readiness: preview.KubectlReadinessChecker{Context: *kubeContext}}).StatusHandler(&http.Client{Timeout: 2 * time.Second}))
+	store := preview.Store{Root: *root, PreviewPort: *previewPort, Readiness: preview.KubectlReadinessChecker{Context: *kubeContext}}
+	client := &http.Client{Timeout: 2 * time.Second}
+	statusHandler := store.StatusHandler(client)
+	guestHandler := store.GuestInventoryHandler(client, preview.KubectlGuestInventoryReader{Context: *kubeContext})
+	routes.Handle("/api/previews/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/guest-resources") {
+			guestHandler.ServeHTTP(w, r)
+			return
+		}
+		statusHandler.ServeHTTP(w, r)
+	}))
 	routes.Handle("/healthz", preview.WatcherHealthHandler(*healthFile, 3*time.Minute))
 	server := &http.Server{Addr: *listen, Handler: routes, ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(server.ListenAndServe())

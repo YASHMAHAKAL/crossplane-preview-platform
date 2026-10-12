@@ -153,7 +153,7 @@ func RenderWithPodBudget(xr PreviewXR, mode string, podBudget int) ([]NamedResou
 		return []NamedResource{namespace, quota, {"deployment", app[0]}, {"service", app[1]}, {"ingress", app[2]}}, nil
 	}
 
-	documents := []map[string]any{app[0], app[1], app[2]}
+	documents := []map[string]any{guestObserverServiceAccount(), guestObserverClusterRole(), guestObserverBinding(), app[0], app[1], app[2]}
 	if len(xr.Spec.Capabilities) > 0 {
 		documents = append([]map[string]any{incidentPolicyCRD(xr.Spec.IncidentPolicy.AllowCritical)}, documents...)
 	}
@@ -272,5 +272,36 @@ func incidentPolicyCRD(allowCritical bool) map[string]any {
 				})}),
 			})},
 		}),
+	})
+}
+
+func guestObserverServiceAccount() map[string]any {
+	return obj(map[string]any{
+		"apiVersion": "v1", "kind": "ServiceAccount",
+		"metadata": obj(map[string]any{"name": "preview-observer", "namespace": "default"}),
+	})
+}
+
+func guestObserverClusterRole() map[string]any {
+	read := []any{"get", "list"}
+	return obj(map[string]any{
+		"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole",
+		"metadata": obj(map[string]any{"name": "preview-observer"}),
+		"rules": []any{
+			obj(map[string]any{"apiGroups": []any{""}, "resources": []any{"pods", "services"}, "verbs": read}),
+			obj(map[string]any{"apiGroups": []any{"apps"}, "resources": []any{"deployments"}, "verbs": read}),
+			obj(map[string]any{"apiGroups": []any{"networking.k8s.io"}, "resources": []any{"ingresses"}, "verbs": read}),
+			obj(map[string]any{"apiGroups": []any{"apiextensions.k8s.io"}, "resources": []any{"customresourcedefinitions"}, "resourceNames": []any{"incidentpolicies.incidents.demo.local"}, "verbs": []any{"get"}}),
+			obj(map[string]any{"apiGroups": []any{"incidents.demo.local"}, "resources": []any{"incidentpolicies"}, "verbs": read}),
+		},
+	})
+}
+
+func guestObserverBinding() map[string]any {
+	return obj(map[string]any{
+		"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRoleBinding",
+		"metadata": obj(map[string]any{"name": "preview-observer"}),
+		"roleRef":  obj(map[string]any{"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "preview-observer"}),
+		"subjects": []any{obj(map[string]any{"kind": "ServiceAccount", "name": "preview-observer", "namespace": "default"})},
 	})
 }

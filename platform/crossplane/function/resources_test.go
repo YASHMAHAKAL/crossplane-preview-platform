@@ -87,7 +87,8 @@ func TestRenderVCluster(t *testing.T) {
 		t.Fatalf("vCluster must use its OSS image: %#v", image)
 	}
 	manifests := values["experimental"].(map[string]any)["deploy"].(map[string]any)["vcluster"].(map[string]any)["manifests"].(string)
-	if !strings.Contains(manifests, "CustomResourceDefinition") || !strings.Contains(manifests, xr.Spec.Image.Digest) {
+	if !strings.Contains(manifests, "CustomResourceDefinition") || !strings.Contains(manifests, xr.Spec.Image.Digest) ||
+		!strings.Contains(manifests, `"kind":"ServiceAccount"`) || !strings.Contains(manifests, `"kind":"ClusterRoleBinding"`) {
 		t.Fatalf("virtual cluster does not receive CRD and app: %s", manifests)
 	}
 	for _, part := range strings.Split(manifests, "\n---\n") {
@@ -101,6 +102,23 @@ func TestRenderVCluster(t *testing.T) {
 		}
 	}
 	t.Fatal("virtual cluster manifests have no Deployment")
+}
+
+func TestGuestObserverRoleIsReadOnly(t *testing.T) {
+	role := guestObserverClusterRole()
+	for _, entry := range role["rules"].([]any) {
+		rule := entry.(map[string]any)
+		for _, resource := range rule["resources"].([]any) {
+			if resource == "secrets" {
+				t.Fatal("guest observer can read Secrets")
+			}
+		}
+		for _, verb := range rule["verbs"].([]any) {
+			if verb != "get" && verb != "list" {
+				t.Fatalf("guest observer has write verb: %v", verb)
+			}
+		}
+	}
 }
 
 func assertPreviewPodLabels(t *testing.T, deployment map[string]any, xr PreviewXR) {

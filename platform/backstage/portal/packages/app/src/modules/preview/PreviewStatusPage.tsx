@@ -13,6 +13,7 @@ import OpenInNewIcon from '@material-ui/icons/OpenInNew';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import { discoveryApiRef, fetchApiRef, useApi } from '@backstage/frontend-plugin-api';
 import { useSearchParams } from 'react-router-dom';
+import { GuestResourcesPanel } from './GuestResourcesPanel';
 
 type PreviewStatus = {
   name: string;
@@ -217,7 +218,8 @@ export function PreviewStatusPage() {
             <Box display="flex" flexWrap="wrap" style={{ gap: 12, marginTop: 24 }}>
               <Button href={pullUrl(prNumber)} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewIcon />} variant="outlined">Open GitHub PR</Button>
               {isReady && <Button href={status?.url ?? ''} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewIcon />} variant="contained" color="primary">Open live preview</Button>}
-              {isReady && <Button href="/catalog/default/component/incident-tracker/kubernetes" variant="outlined">Inspect cluster resources</Button>}
+              {isReady && status?.mode === 'namespace' && <Button href="/catalog/default/component/incident-tracker/kubernetes" variant="outlined">Inspect host resources</Button>}
+              {isReady && status?.mode === 'vcluster' && <Button href="#virtual-resources" variant="outlined">Inspect virtual resources</Button>}
             </Box>
           </Paper>
 
@@ -258,6 +260,7 @@ export function PreviewStatusPage() {
               </Paper>
             </Box>
           )}
+          {isReady && status?.mode === 'vcluster' && <GuestResourcesPanel prNumber={prNumber} headSHA={status.headSHA} />}
         </Box>
       )}
     </Box>

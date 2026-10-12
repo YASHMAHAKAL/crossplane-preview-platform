@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -18,22 +18,43 @@ import { useApi } from '@backstage/frontend-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { kubernetesApiRef } from '@backstage/plugin-kubernetes-react';
 
+type Container = {
+  name?: string;
+  image?: string;
+  ports?: { containerPort?: number }[];
+  resources?: { requests?: Record<string, string>; limits?: Record<string, string> };
+};
+
 type Resource = {
-  metadata?: { name?: string; namespace?: string; creationTimestamp?: string };
+  metadata?: { name?: string; namespace?: string; creationTimestamp?: string; labels?: Record<string, string> };
   spec?: {
     replicas?: number;
     type?: string;
     clusterIP?: string;
     nodeName?: string;
-    rules?: { host?: string }[];
+    serviceAccountName?: string;
+    containers?: Container[];
+    template?: { spec?: { containers?: Container[] } };
+    strategy?: { type?: string };
+    selector?: Record<string, string> | { matchLabels?: Record<string, string> };
+    ports?: { name?: string; port?: number; targetPort?: number | string; protocol?: string }[];
+    ingressClassName?: string;
+    rules?: { host?: string; http?: { paths?: { path?: string; backend?: { service?: { name?: string; port?: { number?: number } } } }[] } }[];
     hard?: Record<string, string>;
-    decision?: { mode?: string };
+    decision?: { mode?: string; reasonCodes?: string[] };
+    serviceRef?: string;
+    pr?: { number?: number; headSHA?: string };
+    image?: { digest?: string };
+    request?: { size?: string; ttlMinutes?: number };
+    deployment?: { replicas?: number };
+    forProvider?: { namespace?: string; chart?: { name?: string; repository?: string; version?: string } };
   };
   status?: {
     phase?: string;
     readyReplicas?: number;
     availableReplicas?: number;
     conditions?: { type?: string; status?: string }[];
+    used?: Record<string, string>;
   };
 };
 
@@ -78,6 +99,71 @@ function detailFor(key: KindKey, item: Resource): string {
   return item.metadata?.creationTimestamp ? new Date(item.metadata.creationTimestamp).toLocaleString() : '—';
 }
 
+type DefinitionField = { name: string; value: string };
+
+function definitionFor(key: KindKey, item: Resource): DefinitionField[] {
+  const fields: DefinitionField[] = [];
+  const add = (name: string, value?: string | number) => {
+    if (value !== undefined && value !== '') fields.push({ name, value: String(value) });
+  };
+  const map = (value?: Record<string, string>) =>
+    Object.entries(value ?? {}).map(([name, entry]) => `${name}=${entry}`).join(', ');
+  const containers = (items?: Container[]) => {
+    for (const container of items ?? []) {
+      add(`Container ${container.name ?? 'app'}`, container.image);
+      add('Container ports', container.ports?.map(port => port.containerPort).filter(Boolean).join(', '));
+      add('Requests', map(container.resources?.requests));
+      add('Limits', map(container.resources?.limits));
+    }
+  };
+  if (key === 'namespaces') {
+    add('Phase', item.status?.phase);
+    add('Preview service', item.metadata?.labels?.['preview.platform.example.org/service']);
+    add('PR number', item.metadata?.labels?.['preview.platform.example.org/pr']);
+  } else if (key === 'pods') {
+    add('Node', item.spec?.nodeName);
+    add('Service account', item.spec?.serviceAccountName);
+    containers(item.spec?.containers);
+  } else if (key === 'deployments' || key === 'statefulsets') {
+    add('Desired replicas', item.spec?.replicas);
+    add('Ready replicas', item.status?.readyReplicas ?? 0);
+    add('Update strategy', item.spec?.strategy?.type);
+    const selector = item.spec?.selector?.matchLabels;
+    if (selector && typeof selector === 'object') add('Selector', map(selector));
+    containers(item.spec?.template?.spec?.containers);
+  } else if (key === 'services') {
+    add('Type', item.spec?.type);
+    add('Cluster IP', item.spec?.clusterIP);
+    add('Selector', map(item.spec?.selector as Record<string, string> | undefined));
+    add('Ports', item.spec?.ports?.map(port => `${port.name ?? 'port'}: ${port.port} → ${port.targetPort ?? port.port}/${port.protocol ?? 'TCP'}`).join(', '));
+  } else if (key === 'ingresses') {
+    add('Ingress class', item.spec?.ingressClassName);
+    for (const rule of item.spec?.rules ?? []) {
+      add('Host', rule.host);
+      add('Paths', rule.http?.paths?.map(path => `${path.path ?? '/'} → ${path.backend?.service?.name ?? 'service'}:${path.backend?.service?.port?.number ?? 80}`).join(', '));
+    }
+  } else if (key === 'resourcequotas') {
+    add('Limits', map(item.spec?.hard));
+    add('Used', map(item.status?.used));
+  } else if (key === 'previewenvironments') {
+    add('Service', item.spec?.serviceRef);
+    add('PR number', item.spec?.pr?.number);
+    add('Source commit', item.spec?.pr?.headSHA);
+    add('Mode', item.spec?.decision?.mode);
+    add('Reason', item.spec?.decision?.reasonCodes?.join(', '));
+    add('Image digest', item.spec?.image?.digest);
+    add('Size', item.spec?.request?.size);
+    add('TTL minutes', item.spec?.request?.ttlMinutes);
+    add('Replicas', item.spec?.deployment?.replicas);
+  } else if (key === 'releases') {
+    add('Namespace', item.spec?.forProvider?.namespace);
+    add('Chart', item.spec?.forProvider?.chart?.name);
+    add('Chart version', item.spec?.forProvider?.chart?.version);
+    add('Repository', item.spec?.forProvider?.chart?.repository);
+  }
+  return fields;
+}
+
 export function ClusterResourcesPage() {
   const { entity } = useEntity();
   const clusterName = entity.metadata.name;
@@ -85,6 +171,7 @@ export function ClusterResourcesPage() {
   const [inventory, setInventory] = useState<Inventory>({});
   const [errors, setErrors] = useState<InventoryErrors>({});
   const [selected, setSelected] = useState<KindKey>('pods');
+  const [expanded, setExpanded] = useState('');
   const [namespace, setNamespace] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -197,16 +284,31 @@ export function ClusterResourcesPage() {
           <Typography color="textSecondary">No {selectedKind.label.toLowerCase()} match this filter.</Typography>}
         {filtered.length > 0 && <Table size="small" aria-label={`${selectedKind.label} inventory`}>
           <TableHead><TableRow>
-            <TableCell>Name</TableCell><TableCell>Namespace</TableCell><TableCell>Status</TableCell><TableCell>Details</TableCell>
+            <TableCell>Name</TableCell><TableCell>Namespace</TableCell><TableCell>Status</TableCell><TableCell>Details</TableCell><TableCell>Definition</TableCell>
           </TableRow></TableHead>
-          <TableBody>{filtered.map(item => (
-            <TableRow key={`${item.metadata?.namespace ?? ''}/${item.metadata?.name ?? ''}`}>
-              <TableCell>{item.metadata?.name ?? '—'}</TableCell>
-              <TableCell>{item.metadata?.namespace ?? '—'}</TableCell>
-              <TableCell>{statusFor(selected, item)}</TableCell>
-              <TableCell>{detailFor(selected, item)}</TableCell>
-            </TableRow>
-          ))}</TableBody>
+          <TableBody>{filtered.map(item => {
+            const key = `${selected}/${item.metadata?.namespace ?? ''}/${item.metadata?.name ?? ''}`;
+            const open = expanded === key;
+            return <React.Fragment key={key}>
+              <TableRow>
+                <TableCell>{item.metadata?.name ?? '—'}</TableCell>
+                <TableCell>{item.metadata?.namespace ?? '—'}</TableCell>
+                <TableCell>{statusFor(selected, item)}</TableCell>
+                <TableCell>{detailFor(selected, item)}</TableCell>
+                <TableCell><Button size="small" onClick={() => setExpanded(open ? '' : key)} aria-expanded={open}>
+                  {open ? 'Hide details' : 'Inspect'}
+                </Button></TableCell>
+              </TableRow>
+              {open && <TableRow><TableCell colSpan={5}>
+                <Box component="dl" style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 180px) minmax(0, 1fr)', gap: '8px 20px', padding: '12px 8px' }}>
+                  {definitionFor(selected, item).map(field => <React.Fragment key={field.name}>
+                    <Typography component="dt" color="textSecondary" variant="body2">{field.name}</Typography>
+                    <Typography component="dd" variant="body2" style={{ margin: 0, overflowWrap: 'anywhere' }}>{field.value}</Typography>
+                  </React.Fragment>)}
+                </Box>
+              </TableCell></TableRow>}
+            </React.Fragment>;
+          })}</TableBody>
         </Table>}
         {updatedAt && <Typography variant="caption" color="textSecondary" style={{ display: 'block', marginTop: 16 }}>
           Updated {updatedAt.toLocaleTimeString()} · refreshes every 30 seconds

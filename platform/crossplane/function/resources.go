@@ -204,12 +204,16 @@ func appObjects(xr PreviewXR, hostNamespace bool, labels map[string]any) []map[s
 		return obj(map[string]any{"name": name, "namespace": ns, "labels": labels})
 	}
 	selector := obj(map[string]any{"app": "incident-tracker"})
+	podLabels := obj(map[string]any{"app": "incident-tracker"})
+	for key, value := range labels {
+		podLabels[key] = value
+	}
 	deployment := obj(map[string]any{
 		"apiVersion": "apps/v1", "kind": "Deployment", "metadata": metadata("incident-tracker"),
 		"spec": obj(map[string]any{
 			"replicas": replicas, "selector": obj(map[string]any{"matchLabels": selector}),
 			"template": obj(map[string]any{
-				"metadata": obj(map[string]any{"labels": selector}),
+				"metadata": obj(map[string]any{"labels": podLabels}),
 				"spec": obj(map[string]any{
 					"securityContext": obj(map[string]any{"runAsNonRoot": true, "runAsUser": 1000}),
 					"containers": []any{obj(map[string]any{

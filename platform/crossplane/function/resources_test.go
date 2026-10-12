@@ -38,7 +38,8 @@ func TestAllowedClusterCapabilityMatchesRenderedCRD(t *testing.T) {
 }
 
 func TestRenderNamespace(t *testing.T) {
-	resources, err := Render(sampleXR("namespace"), "namespace")
+	xr := sampleXR("namespace")
+	resources, err := Render(xr, "namespace")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,6 +49,7 @@ func TestRenderNamespace(t *testing.T) {
 	if resources[2].Object["kind"] != "Deployment" {
 		t.Fatalf("missing Deployment: %#v", resources[2])
 	}
+	assertPreviewPodLabels(t, resources[2].Object, xr)
 	if resources[4].Object["kind"] != "Ingress" {
 		t.Fatalf("missing Ingress: %#v", resources[4])
 	}
@@ -87,6 +89,37 @@ func TestRenderVCluster(t *testing.T) {
 	manifests := values["experimental"].(map[string]any)["deploy"].(map[string]any)["vcluster"].(map[string]any)["manifests"].(string)
 	if !strings.Contains(manifests, "CustomResourceDefinition") || !strings.Contains(manifests, xr.Spec.Image.Digest) {
 		t.Fatalf("virtual cluster does not receive CRD and app: %s", manifests)
+	}
+	for _, part := range strings.Split(manifests, "\n---\n") {
+		var object map[string]any
+		if err := json.Unmarshal([]byte(part), &object); err != nil {
+			t.Fatal(err)
+		}
+		if object["kind"] == "Deployment" {
+			assertPreviewPodLabels(t, object, xr)
+			return
+		}
+	}
+	t.Fatal("virtual cluster manifests have no Deployment")
+}
+
+func assertPreviewPodLabels(t *testing.T, deployment map[string]any, xr PreviewXR) {
+	t.Helper()
+	spec := deployment["spec"].(map[string]any)
+	selector := spec["selector"].(map[string]any)["matchLabels"].(map[string]any)
+	if !reflect.DeepEqual(selector, map[string]any{"app": "incident-tracker"}) {
+		t.Fatalf("Deployment selector changed: %#v", selector)
+	}
+	labels := spec["template"].(map[string]any)["metadata"].(map[string]any)["labels"].(map[string]any)
+	for key, want := range map[string]any{
+		"app":                                   "incident-tracker",
+		"preview.platform.example.org/service":  xr.Spec.ServiceRef,
+		"preview.platform.example.org/pr":       "42",
+		"preview.platform.example.org/head-sha": xr.Spec.PR.HeadSHA,
+	} {
+		if labels[key] != want {
+			t.Errorf("Pod label %s = %v, want %v", key, labels[key], want)
+		}
 	}
 }
 

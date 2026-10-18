@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -54,7 +55,7 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 	} {
 		present, err := observer.get(ctx, resource.kind, resource.item, resource.namespace)
 		if err != nil {
-			return nil, err
+			return remaining, err
 		}
 		if present {
 			remaining = append(remaining, resource.kind+"/"+resource.item)
@@ -62,7 +63,7 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 	}
 	output, err := exec.CommandContext(ctx, "kubectl", "--context", observer.Context, "get", "persistentvolumes", "-o", "json").CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("kubectl get persistentvolumes: %w: %s", err, strings.TrimSpace(string(output)))
+		return remaining, fmt.Errorf("kubectl get persistentvolumes: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	var volumes struct {
 		Items []struct {
@@ -77,7 +78,7 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(output, &volumes); err != nil {
-		return nil, fmt.Errorf("decode persistentvolumes: %w", err)
+		return remaining, fmt.Errorf("decode persistentvolumes: %w", err)
 	}
 	for _, volume := range volumes.Items {
 		if volume.Spec.ClaimRef.Namespace == name {
@@ -94,11 +95,11 @@ func (observer KubectlCleanupObserver) Remaining(ctx context.Context, name strin
 		}
 		request, err := previewRouteRequest(ctx, routeName, observer.PreviewPort)
 		if err != nil {
-			return nil, err
+			return remaining, err
 		}
 		response, err := client.Do(request)
 		if err != nil {
-			return nil, fmt.Errorf("probe preview route %s: %w", routeName, err)
+			return remaining, fmt.Errorf("probe preview route %s: %w", routeName, err)
 		}
 		response.Body.Close()
 		if response.StatusCode != http.StatusNotFound {
@@ -135,6 +136,11 @@ func (store Store) ObserveCleanup(name string, remaining []string, observationEr
 	if record.CleanupStartedAt == "" {
 		record.CleanupStartedAt = record.UpdatedAt // Existing status records predate the explicit field.
 	}
+	// A failed recheck cannot undo a previous proof of deletion. Keep the
+	// recorded result unless the observer found a concrete remaining resource.
+	if record.Decision.Phase == "deleted" && observationErr != nil && len(remaining) == 0 {
+		return record.Decision, nil
+	}
 	started, err := time.Parse(time.RFC3339Nano, record.CleanupStartedAt)
 	if err != nil {
 		return Decision{}, fmt.Errorf("invalid cleanup start: %w", err)
@@ -153,14 +159,19 @@ func (store Store) ObserveCleanup(name string, remaining []string, observationEr
 		result.ReasonCodes = append(result.ReasonCodes, "cleanup-verified")
 		result.Evidence = append(result.Evidence, "Argo Application, XR, namespace, persistent volumes, and both preview routes absent")
 	} else {
-		if observationErr != nil {
-			result.Evidence = append(result.Evidence, observationErr.Error())
-		} else if len(remaining) == 0 {
+		if len(remaining) == 0 && observationErr == nil {
 			result.Evidence = append(result.Evidence, "waiting for cleanup settle delay")
 		} else {
 			result.Evidence = append(result.Evidence, remaining...)
+			if observationErr != nil {
+				result.Evidence = append(result.Evidence, observationErr.Error())
+			}
 		}
-		if !store.now().Before(started.Add(CleanupTimeout)) {
+		if (len(remaining) > 0 && record.Decision.Phase == "deleted") ||
+			(slices.Contains(record.Decision.ReasonCodes, "cleanup-regressed") && (len(remaining) > 0 || observationErr != nil)) {
+			result.Phase = "cleanup-failed"
+			result.ReasonCodes = append(result.ReasonCodes, "cleanup-regressed")
+		} else if !store.now().Before(started.Add(CleanupTimeout)) {
 			result.Phase = "cleanup-failed"
 			result.ReasonCodes = append(result.ReasonCodes, "cleanup-timeout")
 		} else {

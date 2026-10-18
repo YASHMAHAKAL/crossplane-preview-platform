@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -247,6 +249,55 @@ func TestCleanupObservationAndTimeout(t *testing.T) {
 	result, err = store.Reconcile(snapshot, config)
 	if err != nil || result.Phase != "approved" {
 		t.Fatalf("reopened PR: %+v %v", result, err)
+	}
+}
+
+func TestVerifiedCleanupIgnoresInconclusiveAuditButReportsReappearance(t *testing.T) {
+	snapshot, config := fixture()
+	start := time.Date(2026, 10, 17, 10, 0, 0, 0, time.UTC)
+	current := start
+	store := Store{Root: t.TempDir(), Now: func() time.Time { return current }}
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	snapshot.PR.State = "closed"
+	if _, err := store.Reconcile(snapshot, config); err != nil {
+		t.Fatal(err)
+	}
+	name, _ := PreviewName(config.Service, snapshot.PR.Number)
+	current = start.Add(CleanupSettleDelay)
+	result, err := store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "deleted" {
+		t.Fatalf("initial verified cleanup: %+v %v", result, err)
+	}
+	statusFile := filepath.Join(store.Root, "status", name+".json")
+	before, err := os.ReadFile(statusFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current = start.Add(24 * time.Hour)
+	probeErr := errors.New("connection reset by peer")
+	result, err = store.ObserveCleanup(name, nil, probeErr)
+	if err != nil || result.Phase != "deleted" {
+		t.Fatalf("inconclusive audit changed verified status: %+v %v", result, err)
+	}
+	after, err := os.ReadFile(statusFile)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("inconclusive audit rewrote status: %v", err)
+	}
+	resource := "namespaces/" + name
+	result, err = store.ObserveCleanup(name, []string{resource}, probeErr)
+	if err != nil || result.Phase != "cleanup-failed" || !slices.Contains(result.ReasonCodes, "cleanup-regressed") ||
+		!slices.Contains(result.Evidence, resource) || !slices.Contains(result.Evidence, probeErr.Error()) {
+		t.Fatalf("reappeared resource must be reported even with a probe error: %+v %v", result, err)
+	}
+	result, err = store.ObserveCleanup(name, nil, probeErr)
+	if err != nil || result.Phase != "cleanup-failed" || !slices.Contains(result.ReasonCodes, "cleanup-regressed") {
+		t.Fatalf("inconclusive follow-up lost regression: %+v %v", result, err)
+	}
+	result, err = store.ObserveCleanup(name, nil, nil)
+	if err != nil || result.Phase != "deleted" || !slices.Contains(result.ReasonCodes, "cleanup-verified") {
+		t.Fatalf("clean follow-up failed to restore verified deletion: %+v %v", result, err)
 	}
 }
 

@@ -11,8 +11,10 @@ flowchart LR
     Watcher -->|normalized XR| GitOps[(Private trusted GitOps)]
     GitOps --> Argo[Argo CD]
     Argo --> XR[Crossplane v2 PreviewEnvironment]
-    XR --> App[Namespace app URL]
-    App --> Status
+    XR --> Namespace[Namespace app URL]
+    XR --> VCluster[vCluster and virtual app URL]
+    Namespace --> Status
+    VCluster --> Status
 ```
 
 ## Live namespace sequence
@@ -22,6 +24,6 @@ flowchart LR
 3. Wait for `ready`, run `deploy/local/verify-preview.sh <PR> namespace`, and open the displayed URL. Confirm the actual app edit appears. The trusted GitOps repository should contain a normalized XR, never the raw PR manifest.
 4. Close the PR. Wait for `deleted` and `cleanup-verified`, then run `deploy/local/verify-preview.sh <PR> deleted` to check Argo, XR, namespace, volume, and route cleanup.
 
-For a deployment preview, change `spec.replicas` in [the bounded deployment config](deployment-preview.md) from `1` to `2` in another PR. The watcher should explain `namespace`/`namespaced-deployment-change`; verify the live route and two namespaced Deployment replicas, then close and verify cleanup. For vCluster, add `critical` to the [IncidentPolicy severity enum](incident-policy-preview.md); mixing that CRD edit and bounded deployment settings also selects vCluster. Other CRD, deployment, and Crossplane edits are rejected while their evaluation paths are being built. The [historical live evidence](live-pr-verification.md) covers both modes under the earlier request-template flow.
+For a deployment preview, change `spec.replicas` in [the bounded deployment config](deployment-preview.md) from `1` to `2` in another PR. The watcher should explain `namespace`/`namespaced-deployment-change`; verify the live route and two namespaced Deployment replicas, then close and verify cleanup. For vCluster, add `critical` to the [IncidentPolicy severity enum](incident-policy-preview.md); mixing that CRD edit and bounded deployment settings also selects vCluster. The Backstage **PR Previews** page shows the decision and a curated virtual resource inventory for a ready vCluster. Direct Go Function source edits, the bounded namespace Composition pod quota edit, and the bounded XRD validation edit also have vCluster preview paths; other CRD, deployment, and Crossplane changes are deliberately rejected. The [historical live evidence](live-pr-verification.md) covers both modes under the earlier request-template flow.
 
 Live demos create source PRs and GHCR images. Close demo PRs when finished. The local watcher requires the user's systemd manager and cluster to remain available; the [reliability evaluation](reliability-evaluation.md) reports individual samples rather than production availability claims.

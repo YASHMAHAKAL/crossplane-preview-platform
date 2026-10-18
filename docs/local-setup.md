@@ -1,6 +1,6 @@
 # Repeat the local preview platform setup
 
-This runbook recreates the **local control plane** for the existing `YASHMAHAKAL/crossplane-preview-platform` source repository and the separate private `YASHMAHAKAL/preview-gitops` repository. It does not create a cloud deployment. The bootstrap reuses an existing `kind-preview-platform` cluster and fails when an installed pinned version differs, rather than changing an unrelated or newer installation.
+This runbook recreates the **local control plane** for the existing `YASHMAHAKAL/crossplane-preview-platform` source repository and the separate private `YASHMAHAKAL/preview-gitops` repository. It does not create a cloud deployment. The bootstrap reuses an existing `kind-preview-platform` cluster and fails when an installed pinned version differs, rather than changing an unrelated or newer installation. This is an owner-specific setup guide; changing only the evaluator's `repository` setting does not make a fork work end to end.
 
 ## Prerequisites and access
 
@@ -8,6 +8,22 @@ This runbook recreates the **local control plane** for the existing `YASHMAHAKAL
 - `kind`, `kubectl`, Helm, Go, Node 22 or 24, Python 3, `gh`, Git, and `curl` on `PATH`. The kind node image, Crossplane 2.4.0, Argo CD v3.5.2, provider-helm 1.2.0, and NGINX ingress 2.7.3 are pinned in the project files and bootstrap. `kind` v0.33.0 was used for the last verification.
 - `gh auth login` with access to source PR metadata and GitHub Actions artifacts. PR write access is needed to open source changes. The watcher obtains the GitHub token from `gh` at service start; no token goes into Git.
 - SSH read/write access to `git@github.com:YASHMAHAKAL/preview-gitops.git` for the evaluator's private checkout. Argo CD uses a **separate read-only deploy key** for that repository. The source repository and its GHCR app/Function packages must be readable by the cluster.
+- A private `preview-gitops` repository on `main` containing `previews/.gitkeep` and `status/.gitkeep`. Its SSH credential must be able to push; the Argo deploy key needs read access only. The source repository, released Function package, and app image are currently public. GitHub repository visibility does not automatically set GHCR package visibility.
+- Free local ports `34433` (kind API), `8088` (preview ingress), `8090` (status API), `3000` (Backstage frontend), and `7007` (Backstage backend). `kind.yaml` and the portal configuration fix these ports; preflight currently checks port `8088` before creating a cluster, while the other conflicts can surface later.
+
+## Configuration inventory
+
+The following values are tied to this demonstration. They are consistent in the committed files and need no edits when installing on another machine **with access to the same GitHub repositories**.
+
+| Value | Where it is fixed | What to do for a different owner or repository |
+| --- | --- | --- |
+| `YASHMAHAKAL/crossplane-preview-platform` and trusted author | Evaluator config, Backstage catalog/templates, PR URL handling, teardown, and source links | Update all source references together. A private evaluator config alone changes the watcher but leaves Backstage and teardown pointed at the original repository. |
+| `git@github.com:YASHMAHAKAL/preview-gitops.git` | Preflight, bootstrap, service installer, Argo CD ApplicationSet, and verification | Create a separate trusted GitOps repository, then update every consumer before bootstrap. Do not point Argo CD at source PR branches. |
+| `ghcr.io/yashmahakal/function-preview-resources:v0.1.7` | Host Function manifest and isolation gate | Publish a Function package for the new owner, make it pullable by kind, and update the pinned reference. App images and candidate packages are published by the GitHub Actions workflows for the current source repository. |
+| `preview-platform`, `kind-preview-platform`, and localhost ports | kind config, local scripts, Backstage cluster catalog, and portal config | Keep these names and ports for the documented flow; changing them requires coordinated edits. |
+| Operator state under `~/.local` and the Argo key under `~/.config` | Local scripts and the key creation step below | These follow the current user's home directory. They are not committed to Git. |
+
+Fork portability is a separate implementation task; this runbook verifies a fresh installation of the **current** owner-specific demo. To rehearse it without disrupting the running demo, use another machine or a clean OS environment with its own Docker daemon and ports. Do not delete the existing kind cluster merely to test bootstrap.
 
 On a **new** cluster, create an Argo deploy key outside the project checkout, add its `.pub` file to the private GitOps repository's GitHub **Settings → Deploy keys** with write access disabled, then set its path:
 
@@ -64,7 +80,7 @@ If you supplied `MCP_TOKEN` or `PREVIEW_MCP_TOKEN` yourself, export that exact v
 4. Close or merge the PR. Wait for `deleted`/`cleanup-verified`; confirm its Argo Application, XR, namespace, volume, and route are absent. [Reliability evaluation](reliability-evaluation.md) records raw readiness and cleanup times, including recovery after a watcher outage.
    Run `deploy/local/verify-preview.sh <PR number> deleted` for the read-only absence check.
 
-The setup and verification commands do **not** open or close PRs. A fresh-machine install path was not exercised during the 2026-10-08 implementation because the existing cluster was retained; the idempotent bootstrap, portal preparation/start, authenticated catalog check, and control-plane gate passed on that cluster. The previous real PR trials prove both preview modes and cleanup. Someone without access to the private GitOps repository can run the offline `make verify` and render checks, but cannot run this owner-specific end-to-end GitHub demo until they provide their own GitOps repository and adjust the hardcoded repository configuration.
+The setup and verification commands do **not** open or close PRs. A fresh-machine install path was not exercised during the 2026-10-08 implementation because the existing cluster was retained; the idempotent bootstrap, portal preparation/start, authenticated catalog check, and control-plane gate passed on that cluster. The previous real PR trials prove both preview modes and cleanup. Someone without access to the private GitOps repository can run the offline `make verify` and render checks, but cannot run this owner-specific end-to-end GitHub demo until the repository references and package publication are adapted as listed above.
 
 ## Check Crossplane candidate isolation
 
